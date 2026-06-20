@@ -87,8 +87,7 @@ scripts/
   make_paper.py        auto-fill results/PAPER.md from summary.json
 tests/
   test_mech.py         CPU/mock proof that mechanistic logging fires
-  test_pipeline.py     CPU end-to-end: LAD beats baselines on a synthetic oracle
-  make_fixture.py      generate a fake precompute+lifts+mech+causal tree for CPU
+  test_pipeline.py     CPU end-to-end smoke test of the analysis pipeline
 results/           summary.json, PAPER.md, figs/*.png, tables/*.md
 ```
 
@@ -126,13 +125,7 @@ Sanity-check the analysis with no GPU:
 
 ```bash
 python tests/test_mech.py            # mechanistic logging fires (mock trainer)
-python tests/test_pipeline.py        # LAD beats baselines on a synthetic oracle
-# full-script dry run on a synthetic fixture:
-python tests/make_fixture.py --root /tmp/fix
-PYTHONPATH=.:scripts python scripts/analyze.py --datadir /tmp/fix/data/run \
-  --results /tmp/fix/results/lifts --mech /tmp/fix/results/mech \
-  --causal_results /tmp/fix/results/causal --outdir /tmp/fix/results
-PYTHONPATH=.:scripts python scripts/make_paper.py --outdir /tmp/fix/results
+python tests/test_pipeline.py        # CPU smoke test of the analysis pipeline
 ```
 
 ---
