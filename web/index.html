@@ -440,10 +440,23 @@
     </div>
   </section>
 
+  <!-- ============================ THE METRIC ============================ -->
+  <section class="wrap">
+    <div class="sec-head-dark reveal">
+      <span class="sec-num">02 / The Metric</span>
+      <h2 class="sec-title">LAD, in one line</h2>
+      <p class="sec-lede">Three justified factors: is there signal to learn from, is it pointed where lift lives, and is it non-redundant. Computed from k=32 base-model rollouts per task — no training, no gradients.</p>
+    </div>
+    <div class="formula reveal">
+      <div class="formula-eq" id="ladEquation" role="img" aria-label="LAD of D equals the mean over tasks of advantage energy p-hat times one minus p-hat, times headroom one minus p-hat to the gamma, multiplied by effective diversity, Vendi of D over the cohort size, raised to beta"></div>
+      <div class="formula-sub" id="ladEquationSub" role="img" aria-label="with gamma equals one, beta equals one half; p-hat sub i equals successes over k from k equals 32 base-model rollouts"></div>
+    </div>
+  </section>
+
   <!-- ============================ INSIGHT / DERIVATION ============================ -->
   <section class="wrap">
     <div class="sec-head-dark reveal">
-      <span class="sec-num">02 / The Insight</span>
+      <span class="sec-num">03 / The Insight</span>
       <h2 class="sec-title">Lift is bounded by the advantage signal a cohort carries</h2>
       <p class="sec-lede">GRPO's per-task gradient is driven by the spread of rewards within a group. For a binary verifier that spread is exactly p(1−p) — zero when the model always or never solves a task, maximal in the learnable band. LAD turns that theorem into a dataset score.</p>
     </div>
@@ -491,19 +504,6 @@
         <h4>Effective diversity</h4>
         <p>Lift is bounded by distinct skills, not summed energy. The Vendi score — the effective number of unique tasks — divides out redundancy so near-duplicate cohorts cannot fake learnability.</p>
       </div>
-    </div>
-  </section>
-
-  <!-- ============================ THE METRIC ============================ -->
-  <section class="wrap">
-    <div class="sec-head-dark reveal">
-      <span class="sec-num">03 / The Metric</span>
-      <h2 class="sec-title">LAD, in one line</h2>
-      <p class="sec-lede">Three justified factors: is there signal to learn from, is it pointed where lift lives, and is it non-redundant. Computed from k=32 base-model rollouts per task — no training, no gradients.</p>
-    </div>
-    <div class="formula reveal">
-      <div class="formula-eq" id="ladEquation" role="img" aria-label="LAD of D equals the mean over tasks of advantage energy p-hat times one minus p-hat, times headroom one minus p-hat to the gamma, multiplied by effective diversity, Vendi of D over the cohort size, raised to beta"></div>
-      <div class="formula-sub" id="ladEquationSub" role="img" aria-label="with gamma equals one, beta equals one half; p-hat sub i equals successes over k from k equals 32 base-model rollouts"></div>
     </div>
   </section>
 
