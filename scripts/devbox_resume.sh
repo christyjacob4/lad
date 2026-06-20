@@ -58,7 +58,7 @@ case "$STAGE" in
           --cohort_size 256 --eval_size 500 --k 8 2>&1 | tail -30
       tmux kill-session -t lad 2>/dev/null || true
       tmux new -d -s lad "source .venv/bin/activate; \
-        bash scripts/run_waves.sh data/run results/lifts 200 \"0 1\" 2>&1 | tee results/waves.log"
+        bash scripts/run_waves.sh data/run results/lifts 150 \"0 1\" 2>&1 | tee results/waves.log"
       echo "[full] waves launched in tmux session lad; poll results/waves.log"
     '
     ;;

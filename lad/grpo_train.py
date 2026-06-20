@@ -56,21 +56,39 @@ def evaluate_accuracy(model_path_or_obj, eval_tasks, tokenizer=None, max_tokens=
         outs = use_vllm_llm.generate(prompts, sp)
         texts = [o.outputs[0].text for o in outs]
     else:
-        # HF fallback (slow) — used only if vLLM eval isn't wired.
+        # HF generation. `model_path_or_obj` may be EITHER a path/repo string OR
+        # an already-loaded nn.Module (we pass the live base/trained model so we
+        # don't reload weights). Detect which and act accordingly.
         import torch
         from transformers import AutoModelForCausalLM, AutoTokenizer
-        tok = tokenizer or AutoTokenizer.from_pretrained(model_path_or_obj)
-        model = AutoModelForCausalLM.from_pretrained(model_path_or_obj,
-                                                     torch_dtype=torch.bfloat16,
-                                                     device_map="cuda")
+        if hasattr(model_path_or_obj, "generate") and not isinstance(model_path_or_obj, str):
+            model = model_path_or_obj
+            tok = tokenizer or AutoTokenizer.from_pretrained(model.name_or_path)
+        else:
+            tok = tokenizer or AutoTokenizer.from_pretrained(model_path_or_obj)
+            model = AutoModelForCausalLM.from_pretrained(
+                model_path_or_obj, dtype=torch.bfloat16, device_map="cuda")
+        if tok.pad_token is None:
+            tok.pad_token = tok.eos_token
+        # Left-pad for correct batched decoder-only generation.
+        prev_side = tok.padding_side
+        tok.padding_side = "left"
+        was_training = model.training
+        model.eval()
+        dev = next(model.parameters()).device
         texts = []
         for i in range(0, len(prompts), 16):
             batch = prompts[i:i + 16]
-            enc = tok(batch, return_tensors="pt", padding=True).to("cuda")
+            enc = tok(batch, return_tensors="pt", padding=True).to(dev)
             with torch.no_grad():
-                gen = model.generate(**enc, max_new_tokens=max_tokens, do_sample=False)
-            for j, g in enumerate(gen):
-                texts.append(tok.decode(g[enc["input_ids"].shape[1]:], skip_special_tokens=True))
+                gen = model.generate(**enc, max_new_tokens=max_tokens,
+                                     do_sample=False, pad_token_id=tok.pad_token_id)
+            for g in gen:
+                texts.append(tok.decode(g[enc["input_ids"].shape[1]:],
+                                        skip_special_tokens=True))
+        tok.padding_side = prev_side
+        if was_training:
+            model.train()
     correct = [is_correct(t, g) for t, g in zip(texts, golds)]
     return float(np.mean(correct))
 
@@ -90,6 +108,10 @@ def main():
     ap.add_argument("--temperature", type=float, default=1.0)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--eval_max_tokens", type=int, default=512)
+    ap.add_argument("--acc_before", type=float, default=None,
+                    help="precomputed base accuracy on the eval set (identical "
+                         "across cohorts for a fixed base model); skips the base "
+                         "eval when provided.")
     args = ap.parse_args()
 
     import torch
@@ -106,12 +128,19 @@ def main():
         tok.pad_token = tok.eos_token
 
     # ---- accuracy_before ----
-    base_model = AutoModelForCausalLM.from_pretrained(
-        args.model, torch_dtype=torch.bfloat16, device_map="cuda")
-    acc_before = evaluate_accuracy(base_model, eval_tasks, tokenizer=tok,
-                                   max_tokens=args.eval_max_tokens)
-    del base_model
-    torch.cuda.empty_cache()
+    # The base model + eval set are identical across all cohorts, so acc_before
+    # is the same for every run; the wave runner computes it ONCE and passes it
+    # in via --acc_before to avoid 26 redundant base evals.
+    if args.acc_before is not None:
+        acc_before = float(args.acc_before)
+        print(f"[grpo_train] using precomputed acc_before={acc_before:.4f}")
+    else:
+        base_model = AutoModelForCausalLM.from_pretrained(
+            args.model, dtype=torch.bfloat16, device_map="cuda")
+        acc_before = evaluate_accuracy(base_model, eval_tasks, tokenizer=tok,
+                                       max_tokens=args.eval_max_tokens)
+        del base_model
+        torch.cuda.empty_cache()
 
     # ---- GRPO ----
     cfg = GRPOConfig(
@@ -142,6 +171,15 @@ def main():
 
     # ---- accuracy_after ----
     trained = trainer.model
+    # GRPO trains with gradient checkpointing / use_cache=False; re-enable the
+    # KV cache so generation during eval is fast and correct.
+    if hasattr(trained, "gradient_checkpointing_disable"):
+        try:
+            trained.gradient_checkpointing_disable()
+        except Exception:
+            pass
+    if hasattr(trained, "config"):
+        trained.config.use_cache = True
     acc_after = evaluate_accuracy(trained, eval_tasks, tokenizer=tok,
                                   max_tokens=args.eval_max_tokens)
 
