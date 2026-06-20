@@ -55,10 +55,17 @@ def gsm8k_reward(completions, answer, **kwargs):
     return [float(is_correct(c, a)) for c, a in zip(completions, answer)]
 
 
-class MechCallback:
+try:
+    from transformers import TrainerCallback as _TrainerCallback
+except Exception:  # transformers not importable (CPU-only unit tests) -> safe fallback
+    _TrainerCallback = object
+
+
+class MechCallback(_TrainerCallback):
     """TRL TrainerCallback that records per-step log scalars (grad norm, KL,
-    entropy, loss, reward) into a MechAccumulator. Imported lazily so this module
-    has no hard transformers dependency until training time."""
+    entropy, loss, reward) into a MechAccumulator. Inherits transformers'
+    TrainerCallback so the trainer's lifecycle events (on_train_begin,
+    on_step_end, ...) resolve to inherited no-ops; we only override on_log."""
 
     def __init__(self, accumulator):
         self.acc = accumulator
