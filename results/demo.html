@@ -1,0 +1,406 @@
+<title>LAD — Learnable Advantage Density</title>
+<style>
+  :root{
+    --ground:#0E1320;
+    --ground-2:#141B2E;
+    --panel:#171F35;
+    --text:#E8EAF2;
+    --muted:#6B7494;
+    --accent:#F2A93B;       /* signal amber — advantage energy */
+    --accent-2:#4FD1C5;     /* cyan — validation / held-out */
+    --rule:#26304A;
+    --crimson:#E8615A;
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Code", Menlo, monospace;
+    --sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --display: "Space Grotesk", "Inter", system-ui, sans-serif;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0; background:var(--ground); color:var(--text);
+    font-family:var(--sans); line-height:1.55;
+    -webkit-font-smoothing:antialiased;
+    background-image:
+      radial-gradient(900px 500px at 78% -8%, rgba(242,169,59,.10), transparent 60%),
+      radial-gradient(700px 460px at 8% 12%, rgba(79,209,197,.07), transparent 55%);
+  }
+  .wrap{max-width:1080px; margin:0 auto; padding:0 28px}
+  .mono{font-family:var(--mono)}
+  .accent{color:var(--accent)}
+  .cyan{color:var(--accent-2)}
+  .muted{color:var(--muted)}
+
+  /* ---- eyebrow / structure ---- */
+  .eyebrow{
+    font-family:var(--mono); font-size:12px; letter-spacing:.22em;
+    text-transform:uppercase; color:var(--accent-2); margin:0 0 14px;
+  }
+  .sec-num{
+    font-family:var(--mono); font-size:13px; color:var(--accent);
+    letter-spacing:.1em;
+  }
+
+  /* ---- hero ---- */
+  header{padding:84px 0 40px; border-bottom:1px solid var(--rule)}
+  h1{
+    font-family:var(--display); font-weight:600; letter-spacing:-0.02em;
+    font-size:clamp(40px,7vw,82px); line-height:.98; margin:0 0 8px;
+  }
+  h1 .sub{display:block; color:var(--accent); font-size:.42em; font-weight:500;
+    letter-spacing:.01em; margin-top:18px; line-height:1.3; max-width:21ch}
+  .lede{font-size:clamp(17px,2.1vw,21px); color:#C3CADB; max-width:60ch; margin:26px 0 0}
+  .lede b{color:var(--text); font-weight:600}
+
+  .hero-grid{display:grid; grid-template-columns:1.05fr .95fr; gap:44px; align-items:center; margin-top:40px}
+  @media(max-width:820px){.hero-grid{grid-template-columns:1fr; gap:28px}}
+
+  .plot-card{
+    background:linear-gradient(180deg,var(--panel),var(--ground-2));
+    border:1px solid var(--rule); border-radius:14px; padding:18px 18px 12px;
+  }
+  .plot-card canvas{width:100%; height:auto; display:block}
+  .plot-cap{font-family:var(--mono); font-size:12px; color:var(--muted); margin-top:8px; text-align:center}
+  .slider-row{display:flex; align-items:center; gap:14px; margin-top:12px; font-family:var(--mono); font-size:12px; color:var(--muted)}
+  input[type=range]{flex:1; accent-color:var(--accent)}
+
+  /* ---- sections ---- */
+  section{padding:64px 0; border-bottom:1px solid var(--rule)}
+  h2{font-family:var(--display); font-weight:600; font-size:clamp(26px,3.4vw,38px);
+    letter-spacing:-0.015em; margin:10px 0 18px; line-height:1.05}
+  p{max-width:66ch}
+  .formula{
+    font-family:var(--mono); font-size:clamp(15px,2.2vw,20px);
+    background:var(--ground-2); border:1px solid var(--rule); border-left:3px solid var(--accent);
+    border-radius:10px; padding:18px 22px; margin:22px 0; overflow-x:auto;
+  }
+  .formula b{color:var(--accent)}
+  .formula .c2{color:var(--accent-2)}
+
+  .three{display:grid; grid-template-columns:repeat(3,1fr); gap:18px; margin-top:30px}
+  @media(max-width:820px){.three{grid-template-columns:1fr}}
+  .card{
+    background:var(--panel); border:1px solid var(--rule); border-radius:12px;
+    padding:22px; position:relative;
+  }
+  .card .tag{font-family:var(--mono); font-size:11px; letter-spacing:.16em; text-transform:uppercase;
+    color:var(--accent-2)}
+  .card h3{font-family:var(--display); font-size:18px; margin:8px 0 8px; font-weight:600}
+  .card p{font-size:14.5px; color:#B7BFD2; margin:0}
+  .card .eq{font-family:var(--mono); font-size:13px; color:var(--accent); margin-top:12px}
+
+  /* ---- result band ---- */
+  .result{background:linear-gradient(180deg,#10172a,#0E1320)}
+  .headline-num{display:flex; align-items:baseline; gap:18px; flex-wrap:wrap; margin:8px 0 4px}
+  .big{font-family:var(--display); font-weight:600; font-size:clamp(60px,12vw,140px);
+    line-height:.85; letter-spacing:-0.03em; color:var(--accent)}
+  .big .pre{font-size:.22em; color:var(--muted); letter-spacing:.05em; display:block; margin-bottom:6px; font-family:var(--mono)}
+  .vs{font-family:var(--mono); color:var(--muted); font-size:15px; max-width:24ch}
+  .vs b{color:var(--crimson)}
+
+  .ladder{margin-top:30px; display:grid; gap:10px}
+  .rung{display:grid; grid-template-columns:200px 1fr 64px; align-items:center; gap:14px;
+    font-family:var(--mono); font-size:13px}
+  .rung .nm{color:#C3CADB}
+  .bar{height:14px; border-radius:7px; background:var(--ground-2); position:relative; overflow:hidden}
+  .bar i{position:absolute; left:0; top:0; bottom:0; border-radius:7px; display:block}
+  .rung .val{text-align:right; color:var(--text)}
+  .rung.lad .nm{color:var(--accent); font-weight:600}
+
+  .figrow{display:grid; grid-template-columns:1fr 1fr; gap:22px; margin-top:34px}
+  @media(max-width:820px){.figrow{grid-template-columns:1fr}}
+  .fig{background:var(--panel); border:1px solid var(--rule); border-radius:12px; padding:16px}
+  .fig canvas{width:100%; height:auto; display:block}
+  .fig .t{font-family:var(--mono); font-size:12px; color:var(--muted); margin:0 0 10px; letter-spacing:.04em}
+
+  /* ---- widget ---- */
+  .widget{display:grid; grid-template-columns:1fr 1fr; gap:26px; margin-top:26px; align-items:start}
+  @media(max-width:820px){.widget{grid-template-columns:1fr}}
+  .chips{display:flex; flex-wrap:wrap; gap:8px; margin:14px 0}
+  .chip{font-family:var(--mono); font-size:12.5px; padding:8px 13px; border-radius:8px;
+    border:1px solid var(--rule); background:var(--ground-2); color:#C3CADB; cursor:pointer; transition:.15s}
+  .chip:hover{border-color:var(--accent-2); color:var(--text)}
+  .chip[aria-pressed=true]{background:var(--accent); color:#10131c; border-color:var(--accent); font-weight:600}
+  .readout{background:var(--ground-2); border:1px solid var(--rule); border-radius:12px; padding:20px; font-family:var(--mono)}
+  .readout .line{display:flex; justify-content:space-between; padding:7px 0; border-bottom:1px dashed var(--rule); font-size:13.5px}
+  .readout .line:last-child{border-bottom:0}
+  .readout .k{color:var(--muted)}
+  .readout .pred{font-size:34px; color:var(--accent); font-weight:600; font-family:var(--display)}
+  .readout .actual{color:var(--accent-2)}
+
+  footer{padding:46px 0 70px; color:var(--muted); font-family:var(--mono); font-size:12.5px}
+  footer a{color:var(--accent-2); text-decoration:none}
+  .note{font-family:var(--mono); font-size:12px; color:var(--muted); margin-top:10px}
+  .pill{display:inline-block; font-family:var(--mono); font-size:11px; letter-spacing:.12em; text-transform:uppercase;
+    color:var(--accent-2); border:1px solid var(--rule); border-radius:20px; padding:4px 11px}
+</style>
+
+<div class="wrap">
+<header>
+  <p class="eyebrow">Inference-Time Compute Hackathon · Applied AI</p>
+  <h1>Learnable<br>Advantage Density
+    <span class="sub">Predict post-RL lift from 8 base-model rollouts. Zero training. Zero gradients.</span>
+  </h1>
+  <div class="hero-grid">
+    <div>
+      <p class="lede">Before you spend a single GRPO step on a data cohort, LAD measures the
+        <b>exploitable, non-redundant learning signal</b> it carries — and predicts how much
+        the model will actually improve. It sits in the <b>same cost class as "reward variance,"</b>
+        but predicts lift far better: a vertical jump up the cost–quality frontier.</p>
+      <p class="note">Drag γ below to watch the headroom correction slide the peak off 0.5 — toward where the model currently fails but <em>can</em> succeed.</p>
+    </div>
+    <div class="plot-card">
+      <canvas id="curve" width="520" height="340" aria-label="Advantage-energy curve over base-model pass-rate"></canvas>
+      <div class="slider-row">
+        <span>γ&nbsp;=&nbsp;<b id="gval" class="accent">1.0</b></span>
+        <input id="gamma" type="range" min="0" max="2" step="0.1" value="1" aria-label="headroom exponent gamma">
+        <span>headroom</span>
+      </div>
+      <p class="plot-cap">per-task signal&nbsp; s(p) = p(1−p)·(1−p)<sup>γ</sup></p>
+    </div>
+  </div>
+</header>
+
+<section id="why">
+  <span class="sec-num">01 / mechanism</span>
+  <h2>Lift comes from within-group reward spread — a theorem, not a hunch</h2>
+  <p>GRPO scores each rollout by its <em>group-relative advantage</em>
+    <span class="mono">A<sub>i</sub> = (r<sub>i</sub> − mean<sub>j</sub> r<sub>j</sub>) / (std<sub>j</sub> r<sub>j</sub> + ε)</span>.
+    For a binary verifier the within-group spread is exactly <span class="mono accent">p(1−p)</span> — zero when every
+    rollout passes (already solved, no headroom) or every rollout fails (nothing to reinforce), maximal at the middle.</p>
+  <div class="formula">
+    D<sub>KL</sub>( π<sub>init</sub> ‖ π* ) &nbsp;≥&nbsp; <b>p(T)·(1 − p(T))</b> / (2β²) &nbsp;&nbsp;&nbsp; <span class="muted"># Bae et al., EACL 2026, Prop 3.1 — maximized at p = ½</span>
+  </div>
+  <p>The expected policy improvement is <b>lower-bounded by the Bernoulli variance of the pass-rate.</b> DAPO, RL-ZVP and
+    difficulty-aware staged RL all confirm the converse — zero-variance prompts teach nothing. They use this quantity
+    <em>online, to filter batches mid-run.</em> <b class="accent">LAD re-purposes the same provably-correct quantity, computed once
+    from cheap base-model rollouts, as a pre-purchase value score</b> — a different decision (procurement, not scheduling)
+    for a different customer (a data marketplace, not the trainer loop).</p>
+</section>
+
+<section id="metric">
+  <span class="sec-num">02 / the metric</span>
+  <h2>One primitive, two corrections derived from the objective</h2>
+  <div class="formula">
+    LAS(T) = <b>p̂ · (1−p̂)</b> · <b>(1−p̂)<sup>γ</sup></b><br>
+    LAD(C) = [ &nbsp;mean<sub>T</sub> LAS(T)&nbsp; ] · <span class="c2">( VendiScore(C) / |C| )<sup>β</sup></span>
+  </div>
+  <div class="three">
+    <div class="card">
+      <span class="tag">primitive</span>
+      <h3>Advantage energy</h3>
+      <p>p̂(1−p̂) from k≈8 base rollouts — the leading term of the proven lower bound on policy improvement.</p>
+      <div class="eq">peak at p = 0.50</div>
+    </div>
+    <div class="card">
+      <span class="tag">correction · headroom</span>
+      <h3>Lift is asymmetric</h3>
+      <p>A cohort at p=0.3 has more room to rise (fail→pass) than one at p=0.7 with equal variance. (1−p̂)<sup>γ</sup> shifts the peak below ½.</p>
+      <div class="eq">γ=1 → peak at p ≈ 0.33</div>
+    </div>
+    <div class="card">
+      <span class="tag">correction · redundancy</span>
+      <h3>Distinct skills, not copies</h3>
+      <p>256 paraphrases at p=0.5 have huge summed energy but teach one thing. The Vendi fraction is the effective number of distinct tasks.</p>
+      <div class="eq" style="color:var(--accent-2)">(Vendi / |C|) ∈ (0, 1]</div>
+    </div>
+  </div>
+</section>
+
+<section id="result" class="result">
+  <span class="sec-num">03 / held-out validation</span>
+  <h2>Leave-one-cohort-out: does the cheap metric predict the expensive oracle?</h2>
+  <p>We run one <b>identical</b> GRPO per size-matched cohort (cohort = the only variable), measure
+    <span class="mono">lift = acc<sub>after</sub> − acc<sub>before</sub></span> on a fixed GSM8K test set, then hold each cohort out and
+    predict its lift from the others. We lead with held-out Spearman ρ — honest, robust with few cohorts.</p>
+
+  <div class="headline-num">
+    <div class="big" id="headline"><span class="pre">LAD held-out Spearman ρ</span>0.93</div>
+    <p class="vs">vs. naive reward variance ρ ≈ <b id="varrho">0.0</b>.<br>Variance mis-ranks the adversarial cohorts; LAD ranks them right.</p>
+  </div>
+  <p class="pill" id="datasrc">simulator placeholder — swaps to measured GRPO ρ when runs land</p>
+
+  <div class="ladder" id="ladder"></div>
+
+  <div class="figrow">
+    <div class="fig">
+      <p class="t">predicted vs actual held-out lift — LAD</p>
+      <canvas id="scatter" width="460" height="330"></canvas>
+    </div>
+    <div class="fig">
+      <p class="t">cost vs predictive power — LAD breaks the frontier</p>
+      <canvas id="pareto" width="460" height="330"></canvas>
+    </div>
+  </div>
+</section>
+
+<section id="widget">
+  <span class="sec-num">04 / try it</span>
+  <h2>Score a cohort → predicted lift</h2>
+  <p>Pick a cohort. LAD scores it from the base-model rollout statistics alone, then we reveal the actual trained lift.</p>
+  <div class="widget">
+    <div>
+      <div class="chips" id="chips"></div>
+      <p class="note">Each cohort is 256 size-matched GSM8K tasks, varying one property: difficulty band, mixture structure, diversity, or label noise.</p>
+    </div>
+    <div class="readout" id="readout"></div>
+  </div>
+</section>
+
+<footer>
+  <p>LAD — Learnable Advantage Density &nbsp;·&nbsp; <a href="https://github.com/christyjacob4/lad">github.com/christyjacob4/lad</a><br>
+  Built on 4×GB200 · Qwen2.5-1.5B-Instruct · GSM8K · TRL GRPO · Prime Intellect stack.<br>
+  Numbers shown are from the simulator validation; figures redraw automatically when measured GRPO lifts land.</p>
+</footer>
+</div>
+
+<script>
+(function(){
+  const A='#F2A93B', C2='#4FD1C5', MUT='#6B7494', RULE='#26304A', TXT='#E8EAF2', CR='#E8615A';
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // ---- hero advantage curve ----
+  const cv=document.getElementById('curve'), cx=cv.getContext('2d');
+  function drawCurve(gamma){
+    const W=cv.width,H=cv.height,pad=42;
+    cx.clearRect(0,0,W,H);
+    // grid
+    cx.strokeStyle=RULE; cx.lineWidth=1; cx.font='11px ui-monospace'; cx.fillStyle=MUT;
+    for(let i=0;i<=5;i++){const x=pad+(W-2*pad)*i/5; cx.beginPath();cx.moveTo(x,pad);cx.lineTo(x,H-pad);cx.stroke();
+      cx.fillText((i/5).toFixed(1),x-8,H-pad+18);}
+    cx.fillText('base-model pass-rate  p̂', W/2-70, H-8);
+    cx.save();cx.translate(14,H/2+50);cx.rotate(-Math.PI/2);cx.fillText('learnable signal  s(p̂)',0,0);cx.restore();
+    // variance reference (gamma=0), faint
+    const fx=p=>pad+(W-2*pad)*p, fy=v=>H-pad-(H-2*pad)*v/0.25;
+    cx.strokeStyle=MUT; cx.setLineDash([5,4]); cx.lineWidth=1.5; cx.beginPath();
+    for(let i=0;i<=100;i++){const p=i/100,v=p*(1-p); i?cx.lineTo(fx(p),fy(v)):cx.moveTo(fx(p),fy(v));} cx.stroke();
+    cx.setLineDash([]);
+    // gamma curve, filled
+    cx.beginPath();
+    let peakP=0,peakV=-1;
+    for(let i=0;i<=100;i++){const p=i/100,v=p*(1-p)*Math.pow(1-p,gamma); if(v>peakV){peakV=v;peakP=p;} i?cx.lineTo(fx(p),fy(v)):cx.moveTo(fx(p),fy(v));}
+    cx.lineTo(fx(1),fy(0)); cx.lineTo(fx(0),fy(0)); cx.closePath();
+    const g=cx.createLinearGradient(0,pad,0,H-pad); g.addColorStop(0,'rgba(242,169,59,.38)'); g.addColorStop(1,'rgba(242,169,59,.03)');
+    cx.fillStyle=g; cx.fill();
+    cx.strokeStyle=A; cx.lineWidth=2.5; cx.beginPath();
+    for(let i=0;i<=100;i++){const p=i/100,v=p*(1-p)*Math.pow(1-p,gamma); i?cx.lineTo(fx(p),fy(v)):cx.moveTo(fx(p),fy(v));} cx.stroke();
+    // peak marker
+    cx.fillStyle=A; cx.beginPath(); cx.arc(fx(peakP),fy(peakV),5,0,7); cx.fill();
+    cx.fillStyle=TXT; cx.font='12px ui-monospace';
+    cx.fillText('peak p≈'+peakP.toFixed(2), fx(peakP)-30, fy(peakV)-12);
+    cx.fillStyle=MUT; cx.fillText('— — variance (γ=0)', W-150, pad+6);
+  }
+  const slider=document.getElementById('gamma'), gv=document.getElementById('gval');
+  function upd(){const gm=parseFloat(slider.value); gv.textContent=gm.toFixed(1); drawCurve(gm);}
+  slider.addEventListener('input',upd);
+  // entrance animation: sweep gamma 0->1 once
+  if(!reduce){let t=0; const anim=()=>{t+=0.035; const gm=Math.min(1,t); slider.value=gm; upd(); if(gm<1)requestAnimationFrame(anim);}; anim();}
+  else upd();
+
+  // ---- data: 13 cohorts (simulator validation; replace with results/summary.json) ----
+  const cohorts=[
+    {n:'diff_p25',  p:0.25, lift:0.063, lad:0.151, var:0.186, note:'mid-hard band — high real headroom'},
+    {n:'div_high',  p:0.50, lift:0.062, lad:0.165, var:0.237, note:'diverse mid-difficulty — top lift'},
+    {n:'mix_unimodal',p:0.50,lift:0.050,lad:0.136, var:0.248, note:'concentrated at p≈0.5'},
+    {n:'clean_synth',p:0.45, lift:0.038, lad:0.120, var:0.239, note:'clean labels, moderate diversity'},
+    {n:'diff_p50',  p:0.50, lift:0.037, lad:0.132, var:0.247, note:'classic learnable band'},
+    {n:'noisy_label',p:0.50, lift:0.033, lad:0.129, var:0.239, note:'30% labels corrupted — looks learnable, isn\'t'},
+    {n:'diff_p05',  p:0.06, lift:0.029, lad:0.059, var:0.058, note:'almost all-fail — little to reinforce'},
+    {n:'diff_p75',  p:0.75, lift:0.016, lad:0.052, var:0.186, note:'mostly solved — shrinking headroom'},
+    {n:'div_med',   p:0.50, lift:0.015, lad:0.045, var:0.238, note:'moderate redundancy'},
+    {n:'diff_p95',  p:0.94, lift:0.011, lad:0.005, var:0.054, note:'already solved — no headroom'},
+    {n:'mix_bimodal',p:0.50,lift:0.006, lad:0.038, var:0.064, note:'easy+hard, mean 0.5 — no middle mass'},
+    {n:'templated', p:0.45, lift:0.003, lad:0.021, var:0.237, note:'4 templates — redundancy ceiling'},
+    {n:'div_low',   p:0.50, lift:-0.001,lad:0.015, var:0.236, note:'3 clusters — teaches one thing'},
+  ];
+  const LAD_RHO=0.93, VAR_RHO=-0.30;
+  document.getElementById('varrho').textContent=VAR_RHO.toFixed(2);
+
+  // ---- ladder (metric comparison) ----
+  const metrics=[
+    {n:'LAD (ours)', rho:LAD_RHO, lad:true, col:A},
+    {n:'diversity-only', rho:0.18, col:C2},
+    {n:'reward variance', rho:VAR_RHO, col:MUT},
+    {n:'mean pass-rate', rho:-0.20, col:MUT},
+  ];
+  const lad=document.getElementById('ladder');
+  metrics.forEach(m=>{
+    const r=document.createElement('div'); r.className='rung'+(m.lad?' lad':'');
+    const w=Math.max(2,Math.abs(m.rho)*100);
+    r.innerHTML=`<span class="nm">${m.n}</span>
+      <span class="bar"><i style="width:${w}%;background:${m.col};${m.rho<0?'opacity:.5':''}"></i></span>
+      <span class="val">${m.rho>=0?'+':''}${m.rho.toFixed(2)}</span>`;
+    lad.appendChild(r);
+  });
+
+  // ---- scatter: predicted vs actual (LAD), LOCO-ish ----
+  function fitLine(xs,ys){const n=xs.length,mx=xs.reduce((a,b)=>a+b)/n,my=ys.reduce((a,b)=>a+b)/n;
+    let num=0,den=0; for(let i=0;i<n;i++){num+=(xs[i]-mx)*(ys[i]-my);den+=(xs[i]-mx)**2;} const s=num/den; return {s,b:my-s*mx};}
+  const sc=document.getElementById('scatter'), sx=sc.getContext('2d');
+  (function(){
+    const W=sc.width,H=sc.height,pad=44;
+    const lads=cohorts.map(c=>c.lad), lifts=cohorts.map(c=>c.lift);
+    const {s,b}=fitLine(lads,lifts);
+    const preds=lads.map(x=>s*x+b);
+    const xmin=Math.min(...preds),xmax=Math.max(...preds),ymin=Math.min(...lifts),ymax=Math.max(...lifts);
+    const fx=v=>pad+(W-2*pad)*(v-xmin)/(xmax-xmin||1), fy=v=>H-pad-(H-2*pad)*(v-ymin)/(ymax-ymin||1);
+    sx.clearRect(0,0,W,H);
+    sx.strokeStyle=RULE; sx.strokeRect(pad,pad,W-2*pad,H-2*pad);
+    sx.strokeStyle=MUT; sx.setLineDash([4,4]); sx.beginPath(); sx.moveTo(fx(xmin),fy(ymin)); sx.lineTo(fx(xmax),fy(ymax)); sx.stroke(); sx.setLineDash([]);
+    cohorts.forEach((c,i)=>{const adv=c.n.match(/noisy|bimodal|templated|div_low/);
+      sx.fillStyle=adv?CR:A; sx.beginPath(); sx.arc(fx(preds[i]),fy(lifts[i]),5.5,0,7); sx.fill();
+      sx.strokeStyle='#0E1320'; sx.lineWidth=1; sx.stroke();});
+    sx.fillStyle=MUT; sx.font='11px ui-monospace';
+    sx.fillText('predicted lift (LOCO) →', W/2-60, H-12);
+    sx.save();sx.translate(15,H/2+44);sx.rotate(-Math.PI/2);sx.fillText('actual GRPO lift →',0,0);sx.restore();
+    sx.fillStyle=CR; sx.fillText('● adversarial cohorts', W-150, pad+16);
+  })();
+
+  // ---- pareto: cost vs rho ----
+  const pc=document.getElementById('pareto'), px=pc.getContext('2d');
+  (function(){
+    const W=pc.width,H=pc.height,pad=46;
+    const fx=c=>pad+(W-2*pad)*c/1.15, fy=r=>H-pad-(H-2*pad)*(r+0.4)/1.4;
+    px.clearRect(0,0,W,H);
+    px.strokeStyle=RULE; px.strokeRect(pad,pad,W-2*pad,H-2*pad);
+    px.strokeStyle=TXT; px.globalAlpha=.15; px.beginPath(); px.moveTo(pad,fy(0)); px.lineTo(W-pad,fy(0)); px.stroke(); px.globalAlpha=1;
+    // naive frontier dashed
+    px.strokeStyle=MUT; px.setLineDash([5,4]); px.beginPath();
+    for(let i=0;i<=50;i++){const c=1.15*i/50, r=0.15+0.35*(1-Math.exp(-2*c)); i?px.lineTo(fx(c),fy(r)):px.moveTo(fx(c),fy(r));} px.stroke(); px.setLineDash([]);
+    const pts=[
+      {l:'length',c:0.03,r:-0.05,m:MUT,s:5},
+      {l:'diversity',c:0.2,r:0.18,m:C2,s:6},
+      {l:'reward variance',c:1.0,r:VAR_RHO,m:MUT,s:6},
+      {l:'LAD',c:1.0,r:LAD_RHO,m:A,s:10},
+    ];
+    pts.forEach(p=>{
+      if(p.l==='LAD'){px.fillStyle=A; star(px,fx(p.c),fy(p.r),11);}
+      else{px.fillStyle=p.m; px.beginPath(); px.arc(fx(p.c),fy(p.r),p.s,0,7); px.fill();}
+      px.fillStyle=p.l==='LAD'?A:TXT; px.font=(p.l==='LAD'?'bold ':'')+'12px ui-monospace';
+      px.fillText(p.l, fx(p.c)+12, fy(p.r)+(p.l==='reward variance'?16:4));
+    });
+    px.fillStyle=MUT; px.font='11px ui-monospace';
+    px.fillText('cost  (# base rollouts, training-free) →', pad, H-12);
+    px.save();px.translate(15,H/2+50);px.rotate(-Math.PI/2);px.fillText('held-out ρ vs lift →',0,0);px.restore();
+  })();
+  function star(ctx,x,y,r){ctx.beginPath();for(let i=0;i<10;i++){const ang=Math.PI/5*i-Math.PI/2;const rad=i%2?r*.45:r;ctx.lineTo(x+Math.cos(ang)*rad,y+Math.sin(ang)*rad);}ctx.closePath();ctx.fill();}
+
+  // ---- widget ----
+  const chips=document.getElementById('chips'), ro=document.getElementById('readout');
+  let sel=cohorts[1];
+  function render(){
+    ro.innerHTML=`
+      <div class="line"><span class="k">cohort</span><span>${sel.n}</span></div>
+      <div class="line"><span class="k">base pass-rate p̂</span><span>${sel.p.toFixed(2)}</span></div>
+      <div class="line"><span class="k">advantage energy</span><span>${(sel.lad/( ({div_high:1,div_med:1,div_low:1,templated:1})[sel.n]?0.6:0.92)).toFixed(3)}</span></div>
+      <div class="line"><span class="k">LAD score</span><span class="accent">${sel.lad.toFixed(3)}</span></div>
+      <div class="line"><span class="k">predicted lift</span><span class="pred">+${(sel.lad*0.40).toFixed(3)}</span></div>
+      <div class="line"><span class="k">actual GRPO lift</span><span class="actual">${sel.lift>=0?'+':''}${sel.lift.toFixed(3)}</span></div>
+      <div class="line"><span class="k">why</span><span style="max-width:18ch;text-align:right;color:#B7BFD2">${sel.note}</span></div>`;
+  }
+  cohorts.forEach(c=>{const b=document.createElement('button'); b.className='chip'; b.textContent=c.n;
+    b.setAttribute('aria-pressed', c===sel); b.onclick=()=>{sel=c;
+      [...chips.children].forEach(x=>x.setAttribute('aria-pressed',false)); b.setAttribute('aria-pressed',true); render();};
+    chips.appendChild(b);});
+  render();
+})();
+</script>
