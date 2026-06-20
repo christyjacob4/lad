@@ -1,0 +1,29 @@
+==========================================================================
+Synthetic LOCO validation  (13 cohorts x 2 seeds)
+==========================================================================
+metric                              rho_loco    rho_in   R2_loco
+--------------------------------------------------------------------------
+mean_pass_rate                        -0.203    -0.253    -0.141
+variance (p(1-p))                     -0.297     0.341    -0.181
+vendi_only                             0.176     0.500     0.249
+LAD (gamma=1.0,beta=1.0)               0.934     0.945     0.839
+--------------------------------------------------------------------------
+best LAD params: gamma=1.0, beta=1.0
+
+Per-cohort (sorted by actual lift):
+cohort                lift    variance         LAD
+diff_p25            0.0063      0.1858      0.0151
+div_high            0.0062      0.2367      0.0165
+mix_unimodal        0.0050      0.2475      0.0136
+clean_synth         0.0038      0.2386      0.0120
+diff_p50            0.0037      0.2473      0.0132
+noisy_label         0.0033      0.2391      0.0129
+diff_p05            0.0029      0.0583      0.0059
+diff_p75            0.0016      0.1859      0.0052
+div_med             0.0015      0.2375      0.0045
+diff_p95            0.0011      0.0539      0.0005
+mix_bimodal         0.0006      0.0638      0.0038
+templated           0.0003      0.2371      0.0021
+div_low            -0.0001      0.2364      0.0015
+
+PASS: LAD beats naive variance on held-out LOCO rho (pipeline correct).
