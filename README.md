@@ -58,18 +58,38 @@ The spec hands us the ground truth: run one **identical** GRPO per size-matched 
 
 ```
 lad/
-  metric.py        LAD + LAS + Vendi score + baseline metrics
-  validate.py      LOCO cross-validation, Spearman/R², (γ,β) grid fit
+  metric.py        LAD + LAS + Vendi score + the parameterized LAD family
+  baselines.py     ALL baselines + LAD ablations computed from cached rollouts
+  predictive.py    LOCO Spearman/Kendall/Pearson/R²/RMSE/MAE, calibration, top-k,
+                   pairwise, bootstrap CI, permutation, paired-bootstrap, partial
+                   Spearman + multivariate confounder controls
+  reliability.py   rollout-budget sweep k∈{2..32}, rank stability, Beta smoothing,
+                   bootstrap over rollouts/tasks
+  cost.py          per-metric cost descriptors (fwd/verifier/backward, GPU-s, $)
+  mech.py          mechanistic GRPO logging (group reward var, |adv|, zero-adv
+                   frac, all-correct/all-wrong, KL, entropy, grad norm)
+  validate.py      legacy LOCO helpers (superseded by predictive.py)
   gsm8k.py         GSM8K loader + exact-match numeric verifier
   rollouts.py      base-model rollout scoring + embeddings via vLLM
-  cohorts.py       size-matched cohort construction (vary one property)
-  grpo_train.py    identical-per-cohort GRPO (TRL) + before/after eval -> lift
+  cohorts.py       ~19 size-matched cohort families (vary one property)
+  grpo_train.py    identical-per-cohort GRPO (TRL) + before/after eval -> lift,
+                   with optional --mech_dir mechanistic instrumentation
 scripts/
-  precompute.py    score the pool, embed, build cohorts, compute metric inputs (ONCE)
-  run_waves.sh     4-cohorts-in-parallel GRPO waves (one per GB200) under the lease
-  analyze.py       fit LAD, run LOCO vs baselines, emit the 3 demo figures
-  synth_validate.py  no-GPU end-to-end test of the analysis pipeline
-results/           figures + summary.json
+  precompute.py        score the pool (k≤32), embed, build ALL cohorts (ONCE)
+  compute_all_metrics.py  every metric per cohort from cached rollouts (no GPU)
+  causal_select.py     select cohorts by top/bottom-LAD/random/easy/hard/var/div/
+                       passrate + dose-response (Claim 4 selection; no GPU)
+  run_waves.sh         4-cohorts/GB200 GRPO waves (MECH_DIR=... enables mech logs)
+  run_expanded.sh      full GPU driver: precompute -> main waves (+mech) -> causal
+  finish_paper.sh      durable finisher: analysis -> figures -> tables -> PAPER fill
+  analyze.py           master analysis -> results/summary.json (all 4 claims + §17)
+  build_figures.py     all plan figures + tables from summary.json
+  make_paper.py        auto-fill results/PAPER.md from summary.json
+tests/
+  test_mech.py         CPU/mock proof that mechanistic logging fires
+  test_pipeline.py     CPU end-to-end: LAD beats baselines on a synthetic oracle
+  make_fixture.py      generate a fake precompute+lifts+mech+causal tree for CPU
+results/           summary.json, PAPER.md, figs/*.png, tables/*.md
 ```
 
 ## How to run (on the 4×GB200 box, under the GPU lease)
@@ -91,10 +111,28 @@ bash ~/hackathon/gpu_lease.sh run LAD -- tmux new -d -s lad \
 python scripts/analyze.py --datadir data/run --results results/lifts --outdir results
 ```
 
+### Expanded paper-grade run (all 4 claims + Section-17 criteria)
+
+```bash
+# under the lease, detached: precompute(k=32) -> main waves(+mech) -> causal selection
+bash ~/hackathon/gpu_lease.sh run LAD -- \
+  tmux new -d -s lad-paper "cd ~/hackathon/lad && bash scripts/run_expanded.sh 2>&1 | tee results/expanded.log"
+# durable finisher (survives session restarts): analysis -> figures -> PAPER fill
+tmux new -d -s lad-finish "cd ~/hackathon/lad && bash scripts/finish_paper.sh 2>&1 | tee results/finish.log"
+# done when results/PAPER_FINAL_MARKER.txt exists
+```
+
 Sanity-check the analysis with no GPU:
 
 ```bash
-python scripts/synth_validate.py     # proves LAD beats naive variance on held-out ρ in a simulator
+python tests/test_mech.py            # mechanistic logging fires (mock trainer)
+python tests/test_pipeline.py        # LAD beats baselines on a synthetic oracle
+# full-script dry run on a synthetic fixture:
+python tests/make_fixture.py --root /tmp/fix
+PYTHONPATH=.:scripts python scripts/analyze.py --datadir /tmp/fix/data/run \
+  --results /tmp/fix/results/lifts --mech /tmp/fix/results/mech \
+  --causal_results /tmp/fix/results/causal --outdir /tmp/fix/results
+PYTHONPATH=.:scripts python scripts/make_paper.py --outdir /tmp/fix/results
 ```
 
 ---

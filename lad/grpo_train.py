@@ -22,11 +22,59 @@ def load_cohort_tasks(cohort_path):
     return c
 
 
+def make_reward_fn(accumulator=None, num_generations=8):
+    """Build the TRL reward fn. If `accumulator` (a lad.mech.MechAccumulator) is
+    passed, every reward batch is reshaped into (n_prompts, G) groups and fed to
+    the accumulator so we capture the *exact* per-group reward variance / advantage
+    GRPO sees -- the mechanistic ground truth for Claim 1.
+
+    TRL calls the reward fn with the FLAT list of completions for a step (the G
+    rollouts of each prompt are contiguous), so we reshape by num_generations.
+    """
+    from lad.gsm8k import is_correct
+
+    state = {"step": 0}
+
+    def gsm8k_reward(completions, answer, **kwargs):
+        rewards = [float(is_correct(c, a)) for c, a in zip(completions, answer)]
+        if accumulator is not None:
+            r = np.asarray(rewards, dtype=float)
+            G = num_generations
+            if len(r) % G == 0 and len(r) >= G:
+                groups = r.reshape(-1, G)
+                accumulator.add_groups(groups, step=state["step"])
+                state["step"] += 1
+        return rewards
+
+    return gsm8k_reward
+
+
 def gsm8k_reward(completions, answer, **kwargs):
-    """TRL reward fn: list[str] completions, `answer` is the per-sample gold
-    field broadcast by the dataset column. Returns list[float] in {0,1}."""
+    """Plain reward fn (no instrumentation) -- kept for back-compat."""
     from lad.gsm8k import is_correct
     return [float(is_correct(c, a)) for c, a in zip(completions, answer)]
+
+
+class MechCallback:
+    """TRL TrainerCallback that records per-step log scalars (grad norm, KL,
+    entropy, loss, reward) into a MechAccumulator. Imported lazily so this module
+    has no hard transformers dependency until training time."""
+
+    def __init__(self, accumulator):
+        self.acc = accumulator
+
+    def on_log(self, args, state, control, logs=None, **kwargs):
+        if not logs:
+            return
+        step = int(state.global_step) if state is not None else None
+        self.acc.add_step_scalars(
+            step,
+            grad_norm=logs.get("grad_norm"),
+            kl=logs.get("kl"),
+            entropy=logs.get("entropy", logs.get("completions/mean_entropy")),
+            loss=logs.get("loss"),
+            reward=logs.get("reward", logs.get("rewards/gsm8k_reward/mean")),
+        )
 
 
 def build_dataset(tasks):
@@ -112,6 +160,9 @@ def main():
                     help="precomputed base accuracy on the eval set (identical "
                          "across cohorts for a fixed base model); skips the base "
                          "eval when provided.")
+    ap.add_argument("--mech_dir", default=None,
+                    help="if set, write per-cohort mechanistic GRPO logs here "
+                         "(results/mech/<cohort>_seed<seed>.json).")
     args = ap.parse_args()
 
     import torch
@@ -160,14 +211,31 @@ def main():
         report_to=[],
         use_vllm=False,  # colocated TRL gen; vLLM-serve mode wired separately if needed
     )
+    # ---- mechanistic instrumentation (Claim 1) ----
+    accumulator = None
+    reward_fn = gsm8k_reward
+    if args.mech_dir:
+        from lad.mech import MechAccumulator
+        accumulator = MechAccumulator(cohort["name"], seed=args.seed)
+        reward_fn = make_reward_fn(accumulator, num_generations=args.num_generations)
+
     trainer = GRPOTrainer(
         model=args.model,
-        reward_funcs=gsm8k_reward,
+        reward_funcs=reward_fn,
         args=cfg,
         train_dataset=train_ds,
         processing_class=tok,
     )
+    if accumulator is not None:
+        trainer.add_callback(MechCallback(accumulator))
     trainer.train()
+
+    if accumulator is not None:
+        try:
+            mech_path = accumulator.save(args.mech_dir)
+            print(f"[grpo_train] wrote mechanistic log -> {mech_path}")
+        except Exception as e:
+            print(f"[grpo_train] mech log save failed: {e}")
 
     # ---- accuracy_after ----
     trained = trainer.model

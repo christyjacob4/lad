@@ -7,6 +7,18 @@ Goal: make LAD **publishably convincing** by validating four claims.
 > LAD is a cheap, no-training, rollout-only dataset metric that predicts the realized downstream lift
 > from GRPO better *per unit cost* than common data-quality proxies.
 
+## SCOPE DIRECTIVE (updated by user — overrides any "deferred" note below)
+**ALL GPU time is allocated to LAD; the other hackathon GPU projects are SKIPPED.** Execute the FULL
+plan with NO deferrals except hard time limits:
+- Complete baseline suite INCLUDING the expensive ones: gradient-norm, LESS/influence, datamodels,
+  Data Shapley, small-model RL lift, small-budget-GRPO near-oracle, full-GRPO oracle.
+- Full robustness matrix: models 1.5B/3B/7B; benchmarks GSM8K + MATH(+ a transfer set); rollout counts
+  4/8/16; temperatures 0.6/0.8/1.0; γ∈{0,0.5,1,2}; group sizes 4/8/16; cohort sizes 128/256/512;
+  ≥3 seeds for key comparisons.
+- PPO/DAPO as a secondary RL algorithm.
+Scale cohorts toward 30–60. Saturate all 4 GB200 continuously. Log explicitly anything a hard time
+limit prevents — but assume generous GPU budget since LAD is the sole consumer.
+
 ## The four claims and their tests
 1. **Mechanistic** — LAD measures the GRPO learnable signal → LAD correlates with logged reward variance,
    group-advantage magnitude, and update signal *during actual GRPO*.
@@ -48,8 +60,9 @@ permutation p-value. Show scatter + predicted-vs-actual + residuals.
   pass@k, majority-correctness, self-consistency, trajectory entropy, verifier max/mean/var score.
 - LAD ablations: no-headroom, no-diversity, diversity-as-divisor, γ∈{0,0.5,1,2}, entropy-instead-of-p(1−p),
   hard-band(0.2<p<0.8), smoothed-p̂.
-- Expensive (DEFERRED unless time): gradient norm, LESS/influence, LearnAlign, RHO-Loss, datamodels,
-  Data Shapley, small-model RL lift, small-budget GRPO lift, full GRPO lift (oracle).
+- Expensive (IN SCOPE — all GPU time is LAD's; run as many as feasible): gradient norm, LESS/influence,
+  LearnAlign, RHO-Loss, datamodels, Data Shapley, small-model RL lift, small-budget GRPO lift,
+  full GRPO lift (oracle).
 
 ## Causal selection tests (intervention — train identical GRPO on each)
 top-LAD, bottom-LAD, random, easy, hard, highest-naive-variance, highest-diversity, highest-pass-rate,

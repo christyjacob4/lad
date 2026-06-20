@@ -16,6 +16,7 @@ SEEDS="${4:-0 1}"        # seeds per cohort (averaged)
 MODEL="${MODEL:-Qwen/Qwen2.5-1.5B-Instruct}"
 MAXLEN="${MAXLEN:-320}"          # GSM8K answers terminate ~100 tok; 320 is ample, much faster than 512
 EVAL_TOK="${EVAL_TOK:-320}"
+MECH_DIR="${MECH_DIR:-}"         # if set, per-cohort mechanistic GRPO logs go here
 
 mkdir -p "$OUTDIR"
 source .venv/bin/activate 2>/dev/null || true
@@ -54,11 +55,13 @@ run_one() {
   echo "[gpu$gpu] START $name seed$seed -> $out"
   local accb_arg=()
   [ -n "$ACCB" ] && accb_arg=(--acc_before "$ACCB")
+  local mech_arg=()
+  [ -n "$MECH_DIR" ] && mech_arg=(--mech_dir "$MECH_DIR")
   CUDA_VISIBLE_DEVICES="$gpu" python -m lad.grpo_train \
     --cohort "$cohort" --eval_tasks "$EVAL" --out "$out" \
     --model "$MODEL" --steps "$STEPS" --seed "$seed" \
     --max_completion_len "$MAXLEN" --eval_max_tokens "$EVAL_TOK" \
-    "${accb_arg[@]}" \
+    "${accb_arg[@]}" "${mech_arg[@]}" \
     > "$OUTDIR/log_${name}_seed${seed}.txt" 2>&1
   echo "[gpu$gpu] DONE  $name seed$seed (exit $?)"
 }
