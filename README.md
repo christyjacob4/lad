@@ -134,8 +134,6 @@ python tests/test_pipeline.py        # CPU smoke test of the analysis pipeline
 
 > *LAD predicts held-out post-RL lift at Spearman ρ ≈ (measured) using 8 base-model rollouts/task and zero training* — the same cost class as "reward variance" but materially higher predictive power, i.e. a vertical jump up the cost-quality frontier toward the spec's gold star.
 
-See `results/summary.json` and `results/{loco_scatter,pareto,adversarial}.png`.
-
 ---
 
 ## Sources
