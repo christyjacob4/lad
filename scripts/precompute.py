@@ -1,14 +1,19 @@
 """Step 1 (the cheap, training-free part): score a GSM8K pool with k base-model
-rollouts, embed the tasks, build all cohorts, and persist everything.
+rollouts, embed the tasks, build ALL cohort families, and persist everything.
 
-This runs ONCE up front on a single GPU. Everything downstream (the metric
-family, every cohort) is computed from these cached artifacts.
+This runs ONCE up front on a single GPU. Everything downstream (the full metric
+family, every cohort, the causal selection pool) is computed from these cached
+artifacts.
 
 Outputs (under --outdir):
-  pool_scores.json   : p_hat, correct[k], embeddings for the whole pool
+  pool_scores.json   : questions/answers, p_hat, correct[k], clusters, comp_tokens
+  pool_embeddings.npy: (pool, d) task embeddings
   cohorts/<name>.json: per-cohort task list (questions+answers) for GRPO
   eval_set.json      : the FIXED held-out GSM8K test set (same eval before/after)
-  cohort_meta.json   : per-cohort p_hat array + embedding indices (for the metric)
+  cohort_meta.json   : per-cohort indices + p_hat + tags + is_synth (for metrics)
+
+k defaults to 8 for the metric, but pass --k 32 to also enable the rollout-budget
+reliability sweep for free (subsampling the cached 32 columns).
 """
 
 import argparse
@@ -21,10 +26,12 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--model", default="Qwen/Qwen2.5-1.5B-Instruct")
     ap.add_argument("--embed_model", default="Qwen/Qwen3-Embedding-0.6B")
-    ap.add_argument("--pool_size", type=int, default=2000)
+    ap.add_argument("--pool_size", type=int, default=2500)
     ap.add_argument("--cohort_size", type=int, default=256)
     ap.add_argument("--eval_size", type=int, default=500)
-    ap.add_argument("--k", type=int, default=8)
+    ap.add_argument("--k", type=int, default=8,
+                    help="rollouts/task for the metric; use 32 to enable the "
+                         "reliability sweep for free")
     ap.add_argument("--max_tokens", type=int, default=512)
     ap.add_argument("--outdir", default="data/run")
     ap.add_argument("--gpu_mem_frac", type=float, default=0.45)
@@ -43,13 +50,11 @@ def main():
     train_pool = load_gsm8k("train")
     test_all = load_gsm8k("test")
 
-    # Fixed eval set (same before/after).
     eval_idx = rng.choice(len(test_all), size=min(args.eval_size, len(test_all)), replace=False)
     eval_tasks = [test_all[int(i)] for i in eval_idx]
     with open(os.path.join(args.outdir, "eval_set.json"), "w") as f:
         json.dump(eval_tasks, f)
 
-    # Sample a pool to pre-score for difficulty bucketing.
     pool_idx = rng.choice(len(train_pool), size=min(args.pool_size, len(train_pool)), replace=False)
     pool = [train_pool[int(i)] for i in pool_idx]
 
@@ -60,19 +65,21 @@ def main():
     print(f"[precompute] scoring {len(pool)} pool tasks x k={args.k} rollouts...")
     scores = score_tasks_vllm(pool, llm, k=args.k, max_tokens=args.max_tokens)
     p_hat = scores["p_hat"]
+    # completion token lengths from the sampled rollouts (cheap, reused as a baseline)
+    comp_tokens = _completion_token_lengths(scores, llm)
     print(f"[precompute] pool p_hat: mean={p_hat.mean():.3f} "
           f"frac in (0,1)={(((p_hat>0)&(p_hat<1)).mean()):.2f}")
 
-    # --- embeddings for diversity term ---
     print("[precompute] embedding pool tasks...")
     embs = embed_pool(pool, args.embed_model, args.gpu_mem_frac)
 
-    # cluster ids for diversity cohort construction
     from sklearn.cluster import KMeans
     n_clusters = min(40, max(2, len(pool) // 20))
     clusters = KMeans(n_clusters=n_clusters, n_init=4, random_state=0).fit_predict(embs)
 
-    # persist pool scores
+    # question lengths (proxy for length/domain-shift cohorts)
+    q_lengths = np.array([len(t["question"]) for t in pool], dtype=float)
+
     with open(os.path.join(args.outdir, "pool_scores.json"), "w") as f:
         json.dump({
             "questions": [t["question"] for t in pool],
@@ -80,52 +87,49 @@ def main():
             "p_hat": p_hat.tolist(),
             "correct": scores["correct"].tolist(),
             "clusters": clusters.tolist(),
+            "comp_tokens": comp_tokens.tolist(),
+            "q_lengths": q_lengths.tolist(),
+            "k": args.k,
         }, f)
     np.save(os.path.join(args.outdir, "pool_embeddings.npy"), embs)
 
-    # --- build cohorts ---
-    cohort_index = {}
-    cohort_index.update(C.difficulty_band_cohorts(p_hat, size=args.cohort_size, seed=0))
-    cohort_index.update(C.mixture_cohorts(p_hat, size=args.cohort_size, seed=1))
-    cohort_index.update(C.diversity_cohorts(p_hat, clusters, size=args.cohort_size, seed=2))
-
-    # adversarial: noisy-label (override answers)
-    noisy_idx, noisy_overrides = C.noisy_label_cohort(p_hat, pool, size=args.cohort_size, seed=3)
+    # --- build ALL cohort families via the single builder ---
+    spec = C.build_all_cohorts(p_hat, np.asarray(clusters), q_lengths, pool,
+                               size=args.cohort_size)
 
     meta = {}
-    for name, idx in cohort_index.items():
-        idx = [int(i) for i in idx]
-        write_cohort(args.outdir, name, idx, pool)
+    for name, s in spec.items():
+        idx = s["indices"]
+        write_cohort(args.outdir, name, idx, pool, answer_overrides=s["overrides"])
         meta[name] = {
             "indices": idx,
             "p_hat": p_hat[idx].tolist(),
+            "is_synth": s["is_synth"],
+            "tags": s["tags"],
+            "noisy_frac": (len(s["overrides"]) / len(idx)) if s["overrides"] else 0.0,
         }
-
-    # write noisy-label cohort with corrupted answers
-    write_cohort(args.outdir, "noisy_label", [int(i) for i in noisy_idx], pool,
-                 answer_overrides=noisy_overrides)
-    meta["noisy_label"] = {
-        "indices": [int(i) for i in noisy_idx],
-        "p_hat": p_hat[noisy_idx].tolist(),
-        "noisy_frac": len(noisy_overrides) / len(noisy_idx),
-    }
-    # clean version of same difficulty band for contrast
-    clean_idx = noisy_idx  # same tasks, true labels
-    write_cohort(args.outdir, "clean_synth", [int(i) for i in clean_idx], pool)
-    meta["clean_synth"] = {"indices": [int(i) for i in clean_idx],
-                           "p_hat": p_hat[clean_idx].tolist()}
 
     with open(os.path.join(args.outdir, "cohort_meta.json"), "w") as f:
         json.dump(meta, f, indent=2)
 
     print(f"[precompute] built {len(meta)} cohorts -> {args.outdir}/cohorts/")
-    print("[precompute] cohort p_hat means:")
     for name, m in meta.items():
-        print(f"  {name:<14} p_hat_mean={np.mean(m['p_hat']):.3f}  n={len(m['indices'])}")
+        print(f"  {name:<16} p_hat_mean={np.mean(m['p_hat']):.3f}  n={len(m['indices'])}"
+              f"  tags={m['tags']}")
+
+
+def _completion_token_lengths(scores, llm):
+    """Mean completion token length per task from the cached sample completions.
+    Uses the vLLM tokenizer if available; falls back to whitespace word count."""
+    comps = scores.get("sample_completions", [])
+    try:
+        tok = llm.get_tokenizer()
+        return np.array([len(tok.encode(c)) if c else 0 for c in comps], dtype=float)
+    except Exception:
+        return np.array([len(c.split()) if c else 0 for c in comps], dtype=float)
 
 
 def embed_pool(pool, embed_model, gpu_mem_frac):
-    """Embed via sentence-transformers (robust) or vLLM embedding if available."""
     texts = [t["question"] for t in pool]
     try:
         from sentence_transformers import SentenceTransformer

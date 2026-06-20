@@ -53,6 +53,73 @@ def las(p_hat, gamma=1.0):
     return p * (1.0 - p) * np.power(1.0 - p, gamma)
 
 
+# ---- Extended LAD family (iterate phase) ----
+# These keep the SAME mechanism (advantage energy x headroom x effective
+# diversity) but parameterize the functional form so we can honestly search for
+# the form that maximizes held-out LOCO rho. Each knob has a principled reason.
+
+def las_family(p_hat, gamma=1.0, headroom="power", agg="mean"):
+    """Per-task learnable-advantage signal with a choice of headroom form.
+
+    p(1-p) is the Bernoulli variance (GRPO advantage energy, the proven leading
+    term). The headroom factor biases the peak toward the fail-but-learnable side
+    because *lift* (not just signal) is asymmetric.
+
+    headroom:
+      "none"   -> p(1-p)                       (pure variance, peak p=0.5)
+      "power"  -> p(1-p)*(1-p)^gamma           (peak shifts below 0.5; the default)
+      "exp"    -> p(1-p)*exp(-gamma*p)         (smooth headroom, no hard zero at p=1)
+    agg controls how task scores are pooled into the cohort (applied by caller).
+    """
+    p = np.asarray(p_hat, dtype=float)
+    var = p * (1.0 - p)
+    if headroom == "none":
+        return var
+    if headroom == "exp":
+        return var * np.exp(-gamma * p)
+    # default power form
+    return var * np.power(1.0 - p, gamma)
+
+
+def _aggregate(vals, agg="mean"):
+    vals = np.asarray(vals, dtype=float)
+    if agg == "mean":
+        return float(vals.mean())
+    if agg == "rms":            # emphasizes high-signal tasks
+        return float(np.sqrt(np.mean(vals ** 2)))
+    if agg == "p75":            # robust upper-tail of learnable signal
+        return float(np.percentile(vals, 75))
+    if agg == "softmax":        # smooth max — dominated by the most learnable tasks
+        m = vals.max()
+        w = np.exp((vals - m) * 8.0)
+        return float(np.sum(w * vals) / np.sum(w))
+    return float(vals.mean())
+
+
+def lad_family(p_hat, embeddings=None, gamma=1.0, beta=1.0, vendi=None, n=None,
+               headroom="power", agg="mean", div="vendi_frac"):
+    """Generalized LAD score with pluggable headroom / aggregation / diversity.
+
+    div:
+      "none"        -> no diversity correction (advantage energy only)
+      "vendi_frac"  -> (Vendi/|C|)^beta        (effective-distinct fraction; default)
+      "vendi_log"   -> (log(1+Vendi)/log(1+|C|))^beta   (gentler redundancy ceiling)
+    Returns the scalar cohort score.
+    """
+    p = np.asarray(p_hat, dtype=float)
+    nn = n if n is not None else len(p)
+    energy = _aggregate(las_family(p, gamma=gamma, headroom=headroom), agg=agg)
+
+    if div == "none" or beta == 0 or embeddings is None:
+        return float(energy)
+    v = vendi if vendi is not None else vendi_score(embeddings)
+    if div == "vendi_log":
+        frac = np.log1p(v) / np.log1p(nn)
+    else:  # vendi_frac
+        frac = v / nn
+    return float(energy * (frac ** beta))
+
+
 def vendi_score(embeddings, normalize=True):
     """Vendi Score: exp(Shannon entropy of the eigenvalues of the n x n
     cosine-similarity kernel / n). Interpretable as the *effective number of

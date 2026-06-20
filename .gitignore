@@ -6,3 +6,5 @@ data/run/
 results/lifts/
 *.log
 .DS_Store
+!results/demo.html
+!results/synth_validation.txt

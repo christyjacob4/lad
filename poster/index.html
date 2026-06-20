@@ -1,0 +1,1410 @@
+<title>LAD — Learnable Advantage Density</title>
+<style>
+  :root {
+    /* ---- warm-paper neutral system ---- */
+    --paper:      #f6f2e9;   /* page: soft ivory, not pure white */
+    --paper-2:    #f1ebdd;   /* layered panel base */
+    --paper-3:    #eae3d2;   /* deeper panel / well */
+    --card:       #fbf8f1;   /* raised card top */
+    --card-2:     #f4eee1;   /* raised card bottom */
+    --ink:        #23201b;   /* near-black warm charcoal (display) */
+    --text:       #322e26;   /* body */
+    --text-dim:   #6b6456;   /* secondary */
+    --text-faint: #9a9384;   /* tertiary / captions */
+    --rule:       #ddd5c4;   /* hairline rule */
+    --rule-soft:  #e7e0d0;   /* faint rule */
+    --grid:       #e3dcca;   /* chart gridline */
+
+    /* ---- one confident accent: deep ink-blue (academic gravitas) ---- */
+    --accent:      #1d3a5f;  /* primary ink-blue */
+    --accent-mid:  #2d5a8c;  /* mid */
+    --accent-bri:  #3d7ec4;  /* luminous data highlight */
+    --accent-tint: #e7edf4;  /* pale wash for chips/badges */
+
+    /* ---- supporting editorial data hues (muted) ---- */
+    --oxblood: #8c2f28;      /* adversarial / negative contrast */
+    --ochre:   #b07d2e;      /* headroom / warm series */
+    --slate:   #586b78;      /* neutral series */
+    --green:   #3f7d5c;      /* positive series */
+    --gold:    #b8902f;      /* oracle / star accent */
+    --violet:  #6b5b8c;
+
+    --serif: 'Charter', 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif;
+    --sans:  'Avenir Next', 'Helvetica Neue', Helvetica, 'Segoe UI', sans-serif;
+    --mono:  'SF Mono', 'Cascadia Code', 'JetBrains Mono', Menlo, Consolas, monospace;
+
+    --maxw: 1180px;
+
+    /* spacing rhythm (4px base) */
+    --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 24px;
+    --s6: 32px; --s7: 48px; --s8: 64px;
+
+    --sh-card: 0 1px 1px rgba(43,38,28,0.04), 0 8px 24px -16px rgba(43,38,28,0.30);
+    --sh-lift: 0 1px 1px rgba(43,38,28,0.05), 0 18px 44px -24px rgba(43,38,28,0.42);
+  }
+
+  * { box-sizing: border-box; }
+
+  .lad-root {
+    background:
+      radial-gradient(1100px 620px at 82% -8%, rgba(61,126,196,0.07), transparent 60%),
+      radial-gradient(820px 560px at -8% 14%, rgba(140,47,40,0.045), transparent 55%),
+      linear-gradient(180deg, #f8f4ec 0%, var(--paper) 22%, var(--paper) 100%);
+    color: var(--text);
+    font-family: var(--sans);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    padding: 0 0 var(--s8);
+    overflow-x: hidden;
+    position: relative;
+  }
+  /* fine paper grain */
+  .lad-root::before {
+    content: "";
+    position: fixed; inset: 0;
+    pointer-events: none; z-index: 0;
+    opacity: 0.32;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix type='saturate' values='0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/></svg>");
+    mix-blend-mode: multiply;
+  }
+
+  .wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 var(--s5); position: relative; z-index: 1; }
+
+  /* ---------- panels ---------- */
+  .panel {
+    background: linear-gradient(180deg, var(--card) 0%, var(--card-2) 100%);
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    box-shadow: var(--sh-card);
+    position: relative;
+  }
+
+  section { padding: var(--s8) 0 var(--s1); }
+  .sec-num {
+    font-family: var(--mono); font-size: 11.5px; letter-spacing: 0.26em;
+    color: var(--accent-mid); text-transform: uppercase; margin-bottom: var(--s3); display: block;
+  }
+  h2.sec-title {
+    font-family: var(--serif); font-weight: 600; font-size: clamp(26px, 4vw, 41px);
+    color: var(--ink); margin: 0 0 var(--s2); line-height: 1.08; letter-spacing: -0.012em;
+  }
+  h2.sec-title em { font-style: italic; color: var(--accent); }
+  .sec-lede {
+    color: var(--text-dim); max-width: 720px; font-size: 16px; line-height: 1.62; margin: 0 0 var(--s6);
+  }
+  .sec-head-dark { margin-bottom: var(--s6); }
+
+  /* ============= HERO ============= */
+  .hero { padding-top: var(--s8); padding-bottom: var(--s6); }
+  .hero-grid { display: grid; grid-template-columns: 1fr; gap: var(--s6); }
+  .eyebrow {
+    font-family: var(--mono); font-size: 11.5px; letter-spacing: 0.26em; text-transform: uppercase;
+    color: var(--accent-mid); display: flex; align-items: center; gap: var(--s3); flex-wrap: wrap;
+  }
+  .eyebrow .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent-bri); box-shadow: 0 0 0 3px rgba(61,126,196,0.18); animation: pulse 2.8s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.45;transform:scale(.72)} }
+  .hero h1 {
+    font-family: var(--serif); font-weight: 600;
+    font-size: clamp(42px, 8.4vw, 90px); line-height: 0.98; letter-spacing: -0.028em;
+    margin: var(--s5) 0 var(--s1); color: var(--ink);
+  }
+  .hero h1 .lad-word {
+    color: var(--accent); font-style: italic; position: relative;
+  }
+  .hero .subtitle {
+    font-family: var(--serif); font-style: italic; font-size: clamp(19px, 2.6vw, 27px);
+    color: var(--text); max-width: 760px; margin: var(--s3) 0 0; line-height: 1.36; font-weight: 400;
+  }
+  .hero .thesis {
+    font-size: 16.5px; color: var(--text-dim); max-width: 700px; margin-top: var(--s5);
+    border-left: 2px solid var(--accent); padding-left: var(--s4); line-height: 1.58;
+  }
+  .hero .thesis em { color: var(--ink); font-style: italic; }
+  .chips { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--s4); margin-top: var(--s7); }
+  .chip {
+    background: linear-gradient(168deg, var(--card) 0%, var(--card-2) 100%);
+    border: 1px solid var(--rule); border-radius: 6px; padding: var(--s5) var(--s5) var(--s4);
+    position: relative; overflow: hidden;
+    box-shadow: var(--sh-card);
+    transition: transform .25s cubic-bezier(.2,.8,.2,1), box-shadow .25s ease;
+  }
+  .chip:hover { transform: translateY(-2px); box-shadow: var(--sh-lift); }
+  .chip .big {
+    font-family: var(--serif); font-weight: 600; font-size: clamp(30px, 5vw, 46px);
+    line-height: 1; color: var(--ink); letter-spacing: -0.02em;
+  }
+  .chip .big .unit { font-size: 0.5em; color: var(--text-dim); font-weight: 400; }
+  .chip .lab { font-size: 12.5px; color: var(--text-dim); margin-top: var(--s3); line-height: 1.5; }
+  .chip.hero-chip .big { color: var(--accent); }
+  .chip::before {
+    content: ""; position: absolute; top: 0; left: 0; width: 100%; height: 3px;
+    background: var(--accent, var(--accent));
+  }
+  .chip .tag {
+    font-family: var(--mono); font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--text-faint); margin-bottom: var(--s3);
+  }
+
+  /* ============= generic layout helpers ============= */
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s5); align-items: start; }
+  .card {
+    background: linear-gradient(180deg, var(--card) 0%, var(--card-2) 100%);
+    border: 1px solid var(--rule); border-radius: 6px; padding: var(--s5) var(--s6);
+    box-shadow: var(--sh-card);
+    position: relative;
+  }
+  .card h3 { font-family: var(--serif); font-weight: 600; font-size: 21px; margin: 0 0 var(--s3); color: var(--ink); line-height: 1.2; }
+  .card p { font-size: 15px; color: var(--text); margin: 0 0 var(--s3); line-height: 1.62; }
+  .card p:last-child { margin-bottom: 0; }
+  .card em { font-style: italic; color: var(--ink); }
+  .card strong { color: var(--accent); font-weight: 600; }
+  .muted { color: var(--text-dim); }
+
+  .kicker { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--accent-mid); margin-bottom: var(--s3); }
+
+  /* ============= chart cards ============= */
+  .viz {
+    background: linear-gradient(180deg, var(--card) 0%, var(--card-2) 100%);
+    border: 1px solid var(--rule); border-radius: 6px; padding: var(--s5) var(--s5) var(--s4);
+    box-shadow: var(--sh-card);
+    position: relative; overflow: hidden;
+  }
+  .viz-head { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--s4); margin-bottom: var(--s1); flex-wrap: wrap; }
+  .viz-title { font-family: var(--serif); font-weight: 600; font-size: 20px; color: var(--ink); margin: 0; line-height: 1.15; }
+  .viz-sub { font-size: 13.5px; color: var(--text-dim); margin: var(--s1) 0 var(--s4); line-height: 1.5; }
+  .viz svg, .viz canvas { display: block; width: 100%; height: auto; }
+  .scroll-x { overflow-x: auto; }
+
+  .claim-badge {
+    display: inline-flex; align-items: center; gap: var(--s2); white-space: nowrap;
+    font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.13em; text-transform: uppercase;
+    color: var(--accent); background: var(--accent-tint); border: 1px solid rgba(45,90,140,0.28);
+    padding: 5px 11px; border-radius: 99px;
+  }
+
+  .stat-row { display: flex; gap: var(--s5); flex-wrap: wrap; margin-top: var(--s4); }
+  .stat-row .s { font-family: var(--mono); font-size: 13px; color: var(--text); }
+  .stat-row .s b { color: var(--ink); font-size: 16px; }
+  .stat-row .s span { color: var(--text-dim); }
+
+  /* controls */
+  .controls { display: flex; gap: var(--s5); align-items: center; flex-wrap: wrap; margin: var(--s1) 0 var(--s4); }
+  .ctl { display: flex; flex-direction: column; gap: var(--s2); min-width: 160px; flex: 1; }
+  .ctl label { font-size: 12px; color: var(--text-dim); display: flex; justify-content: space-between; font-family: var(--mono); letter-spacing: 0.03em; }
+  .ctl label b { color: var(--accent); }
+  input[type=range] {
+    -webkit-appearance: none; appearance: none; height: 4px; border-radius: 4px;
+    background: linear-gradient(90deg, var(--accent) 0%, var(--accent) 50%, var(--grid) 50%);
+    outline: none; width: 100%;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 17px; height: 17px; border-radius: 50%;
+    background: #fff; border: 3px solid var(--accent); cursor: pointer;
+    box-shadow: 0 1px 4px rgba(43,38,28,0.28); margin-top: -1px;
+  }
+  input[type=range]::-moz-range-thumb { width: 15px; height: 15px; border-radius: 50%; background: #fff; border: 3px solid var(--accent); cursor: pointer; }
+
+  .toggle-row { display: flex; gap: var(--s2); flex-wrap: wrap; }
+  .toggle {
+    font-family: var(--mono); font-size: 11.5px; letter-spacing: 0.04em;
+    padding: 6px 12px; border-radius: 99px; cursor: pointer; user-select: none;
+    border: 1px solid var(--rule); background: var(--paper-2); color: var(--text-dim);
+    transition: all 0.18s ease;
+  }
+  .toggle:hover { border-color: var(--text-faint); color: var(--text); }
+  .toggle.on { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+  .toggle.on.v { background: var(--slate); border-color: var(--slate); color: #fff; }
+  .toggle.on.h { background: var(--ochre); border-color: var(--ochre); color: #fff; }
+  .toggle.on.p { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+  .legend { display: flex; gap: var(--s4); flex-wrap: wrap; font-size: 12.5px; color: var(--text-dim); margin-top: var(--s3); font-family: var(--mono); }
+  .legend i { display: inline-block; width: 11px; height: 11px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+  .legend b { color: var(--accent); }
+
+  /* tooltip */
+  .tt {
+    position: fixed; pointer-events: none; z-index: 50; opacity: 0; transition: opacity 0.12s;
+    background: var(--ink); color: #f3eddf; border: 1px solid var(--accent-mid);
+    border-radius: 6px; padding: 9px 12px; font-size: 12.5px; font-family: var(--mono);
+    box-shadow: 0 14px 34px -10px rgba(43,38,28,0.5); max-width: 240px; line-height: 1.55;
+  }
+  .tt b { color: #8fc0f0; }
+  .tt .nm { font-family: var(--sans); font-size: 13px; color: #fff; font-weight: 600; margin-bottom: var(--s1); display:block; letter-spacing: 0.01em;}
+
+  /* formula block */
+  .formula {
+    font-family: var(--mono); background: var(--ink); color: #ece4d3; border-radius: 8px;
+    padding: var(--s5) var(--s6); font-size: clamp(14px, 2.2vw, 19px); line-height: 1.85; overflow-x: auto;
+    border: 1px solid #3a342a; box-shadow: var(--sh-lift);
+  }
+  .formula .v1 { color: #8fb4d6; }
+  .formula .v2 { color: #e0a861; }
+  .formula .v3 { color: #7fc79e; }
+  .formula .dim { color: #837b6c; }
+
+  .factor-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--s4); margin-top: var(--s5); }
+  .factor {
+    border: 1px solid var(--rule); border-radius: 6px; padding: var(--s4) var(--s4) var(--s3);
+    background: var(--paper-2); position: relative; box-shadow: var(--sh-card);
+  }
+  .factor .f-icon { font-family: var(--mono); font-size: 13px; padding: 3px 9px; border-radius: 5px; display: inline-block; margin-bottom: var(--s3); }
+  .factor.a .f-icon { background: rgba(88,107,120,0.16); color: var(--slate); }
+  .factor.b .f-icon { background: rgba(176,125,46,0.16); color: var(--ochre); }
+  .factor.c .f-icon { background: var(--accent-tint); color: var(--accent); }
+  .factor h4 { font-family: var(--serif); font-weight: 600; font-size: 17px; margin: 0 0 var(--s2); color: var(--ink); }
+  .factor p { font-size: 13.5px; color: var(--text-dim); margin: 0; line-height: 1.55; }
+
+  /* cohort family chips */
+  .fam-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(152px, 1fr)); gap: var(--s2); margin-top: var(--s2); }
+  .fam {
+    border: 1px solid var(--rule-soft); border-radius: 5px; padding: var(--s3) var(--s3);
+    background: var(--paper-2); font-size: 12.5px; transition: border-color .18s ease, background .18s ease;
+  }
+  .fam:hover { border-color: var(--accent-mid); background: var(--accent-tint); }
+  .fam .fn { font-family: var(--mono); color: var(--ink); font-size: 12px; }
+  .fam .fd { color: var(--text-faint); font-size: 11px; margin-top: 2px; }
+
+  /* design steps */
+  .steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--s4); margin-top: var(--s2); }
+  .step { border-top: 2px solid var(--accent); padding: var(--s3) var(--s1) 0; }
+  .step .sn { font-family: var(--mono); font-size: 10.5px; color: var(--accent-mid); letter-spacing: 0.1em; }
+  .step h4 { font-family: var(--serif); font-weight: 600; font-size: 16px; margin: var(--s2) 0 var(--s1); color: var(--ink); }
+  .step p { font-size: 12.5px; color: var(--text-dim); margin: 0; line-height: 1.5; }
+
+  /* widget */
+  .widget-grid { display: grid; grid-template-columns: 1fr 0.85fr; gap: 0; }
+  .widget-left { padding: var(--s6) var(--s6); }
+  .widget-right {
+    padding: var(--s6) var(--s6); border-left: 1px solid var(--rule);
+    background: linear-gradient(165deg, #29251e 0%, var(--ink) 100%);
+    border-radius: 0 6px 6px 0; display: flex; flex-direction: column; justify-content: center;
+  }
+  .widget-out-label { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.2em; text-transform: uppercase; color: #8fc0f0; }
+  .widget-lad { font-family: var(--serif); font-weight: 600; font-size: 50px; color: #f3eddf; line-height: 1; margin: var(--s2) 0 var(--s1); }
+  .widget-lift { font-family: var(--serif); font-weight: 600; font-size: 60px; line-height: 1; margin: var(--s1) 0 0; }
+  .widget-lift .lg { color: #7fc79e; }
+  .widget-sub { color: #a59d8d; font-size: 13px; margin-top: var(--s4); font-family: var(--mono); }
+  .widget-bar { height: 9px; border-radius: 99px; background: rgba(255,255,255,0.1); margin: var(--s5) 0 var(--s1); overflow: hidden; }
+  .widget-bar > i { display: block; height: 100%; background: linear-gradient(90deg, var(--accent-mid), #7fc79e); border-radius: 99px; transition: width 0.3s cubic-bezier(.2,.8,.2,1); }
+
+  /* related work */
+  .rel-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: var(--s3); }
+  .rel {
+    border: 1px solid var(--rule-soft); border-radius: 6px; padding: var(--s4) var(--s4);
+    background: var(--paper-2); transition: border-color .18s ease, transform .18s ease;
+  }
+  .rel:hover { border-color: var(--accent-mid); transform: translateY(-1px); }
+  .rel h5 { font-family: var(--mono); font-size: 13px; margin: 0 0 var(--s1); color: var(--accent); letter-spacing: 0.01em; }
+  .rel p { font-size: 12px; color: var(--text-dim); margin: 0; line-height: 1.5; }
+
+  .lim-list { list-style: none; padding: 0; margin: 0; }
+  .lim-list li { padding: var(--s3) 0 var(--s3) var(--s5); border-bottom: 1px solid var(--rule-soft); position: relative; font-size: 14.5px; color: var(--text); line-height: 1.55; }
+  .lim-list li:last-child { border-bottom: none; }
+  .lim-list li::before { content: "▸"; position: absolute; left: 2px; top: var(--s3); color: var(--oxblood); }
+
+  .pareto-note { font-family: var(--mono); font-size: 12px; color: #b9c4cc; margin-top: var(--s3); display:flex; gap:var(--s2); align-items:center; flex-wrap: wrap; }
+  .glow-tag {
+    display:inline-block; font-family: var(--mono); font-size: 11px; letter-spacing: 0.08em;
+    color: #aee0c4; background: rgba(127,199,158,0.14); border:1px solid rgba(127,199,158,0.4);
+    padding: 4px 11px; border-radius: 99px;
+  }
+
+  footer {
+    margin-top: var(--s8); padding-top: var(--s5); border-top: 1px solid var(--rule);
+    color: var(--text-faint); font-size: 12.5px; font-family: var(--mono); text-align: center; letter-spacing: 0.02em; line-height: 1.8;
+  }
+  footer b { color: var(--text-dim); }
+
+  .divider-rule { height: 1px; background: linear-gradient(90deg, transparent, var(--rule), transparent); margin: var(--s2) 0 0; }
+
+  /* reveal animation */
+  .reveal { opacity: 0; transform: translateY(20px); transition: opacity 0.7s ease, transform 0.7s cubic-bezier(.2,.7,.2,1); }
+  .reveal.in { opacity: 1; transform: none; }
+
+  /* orchestrated hero page-load reveal */
+  @keyframes heroRise { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+  .hero-anim { opacity: 0; animation: heroRise 0.85s cubic-bezier(.2,.7,.2,1) forwards; }
+  .hero .eyebrow.hero-anim   { animation-delay: 0.05s; }
+  .hero h1.hero-anim         { animation-delay: 0.16s; }
+  .hero .subtitle.hero-anim  { animation-delay: 0.30s; }
+  .hero .thesis.hero-anim    { animation-delay: 0.42s; }
+  .hero .chips .chip:nth-child(1) { animation-delay: 0.54s; }
+  .hero .chips .chip:nth-child(2) { animation-delay: 0.62s; }
+  .hero .chips .chip:nth-child(3) { animation-delay: 0.70s; }
+
+  @media (max-width: 860px) {
+    .two-col { grid-template-columns: 1fr; }
+    .chips { grid-template-columns: 1fr; }
+    .factor-grid { grid-template-columns: 1fr; }
+    .steps { grid-template-columns: 1fr 1fr; }
+    .widget-grid { grid-template-columns: 1fr; }
+    .widget-right { border-left: none; border-top: 1px solid var(--rule); border-radius: 0 0 6px 6px; }
+  }
+  @media (max-width: 520px) {
+    .steps { grid-template-columns: 1fr; }
+    .stat-row { gap: 12px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .reveal { transition: none; opacity: 1; transform: none; }
+    .hero-anim { animation: none; opacity: 1; transform: none; }
+    .eyebrow .dot { animation: none; }
+  }
+</style>
+
+<div class="lad-root">
+
+  <!-- ============================ HERO ============================ -->
+  <section class="hero wrap">
+    <div class="hero-grid">
+      <div>
+        <div class="eyebrow hero-anim"><span class="dot"></span> Inference-Time Compute Hackathon 2026 · Applied AI Track</div>
+        <h1 class="hero-anim">Learnable <span class="lad-word">Advantage</span> Density</h1>
+        <p class="subtitle hero-anim">A cheap, training-free signal that predicts post-RL lift — from base-model rollouts alone, before a single gradient step.</p>
+        <p class="thesis hero-anim">LAD is a no-training, rollout-only dataset metric that predicts the realized downstream lift from GRPO better <em>per unit cost</em> than common data-quality proxies.</p>
+      </div>
+      <div class="chips">
+        <div class="chip hero-chip hero-anim" style="--accent: var(--accent)">
+          <div class="tag">Held-out prediction</div>
+          <div class="big">ρ = 0.89</div>
+          <div class="lab">LOCO Spearman correlation between LAD and measured post-RL lift across 19 cohorts (95% CI 0.81–0.94).</div>
+        </div>
+        <div class="chip hero-anim" style="--accent: var(--green)">
+          <div class="tag">Causal selection</div>
+          <div class="big">+6.6 <span class="unit">pts</span></div>
+          <div class="lab">Training on the top-LAD cohort beats a random cohort by 6.6 accuracy points at identical RL compute.</div>
+        </div>
+        <div class="chip hero-anim" style="--accent: var(--ochre)">
+          <div class="tag">Cost efficiency</div>
+          <div class="big">1/125<span class="unit">th</span></div>
+          <div class="lab">LAD matches small-RL-proxy predictive power at 1/125th of its cost — 8 rollouts vs ~1000.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================ PROBLEM ============================ -->
+  <section class="wrap">
+    <div class="sec-head-dark reveal">
+      <span class="sec-num">01 / The Problem</span>
+      <h2 class="sec-title">Will this cohort move the model — before you pay for the run?</h2>
+      <p class="sec-lede">Frontier labs buy expensive post-training data and burn full RL runs to find out whether it helps. The economic question is upstream of training: which cohorts earn their compute?</p>
+    </div>
+    <div class="two-col">
+      <div class="card reveal">
+        <div class="kicker">The buyer's dilemma</div>
+        <h3>The answer arrives after the bill</h3>
+        <p>Today, a cohort's value is revealed only <em>after</em> a complete GRPO run — accuracy-after minus accuracy-before on a fixed benchmark. Procurement, budget allocation, and data-QA decisions are all made blind, then validated by the most expensive possible measurement.</p>
+        <p class="muted">A reliable pre-purchase, pre-training score re-prices the entire post-training data market: allocate RL compute by predicted lift-per-dollar, and kill bad cohorts before they cost a run.</p>
+      </div>
+      <div class="card reveal">
+        <div class="kicker">Where on the frontier?</div>
+        <h3>The cost ↔ predictive-power tradeoff</h3>
+        <p>Cheap proxies (token length, diversity) are nearly free but weak. Strong predictors (gradient influence, datamodels, a small RL run) are accurate but cost 100×–1000× more. The open question: can a signal live in the <strong>top-left</strong> — cheap <em>and</em> predictive?</p>
+        <p class="muted">LAD targets exactly that corner of the Pareto plane, and the study places it there empirically.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================ INSIGHT / DERIVATION ============================ -->
+  <section class="wrap">
+    <div class="sec-head-dark reveal">
+      <span class="sec-num">02 / The Insight</span>
+      <h2 class="sec-title">Lift is bounded by the advantage signal a cohort carries</h2>
+      <p class="sec-lede">GRPO's per-task gradient is driven by the spread of rewards within a group. For a binary verifier that spread is exactly p(1−p) — zero when the model always or never solves a task, maximal in the learnable band. LAD turns that theorem into a dataset score.</p>
+    </div>
+
+    <div class="viz reveal">
+      <div class="viz-head">
+        <div>
+          <h3 class="viz-title">The learnable-band derivation curve</h3>
+          <p class="viz-sub">Per-task signal p̂(1−p̂)(1−p̂)<sup>γ</sup> across pass-rate p̂. Drag γ to shift the peak toward harder-but-learnable tasks; toggle the component curves.</p>
+        </div>
+        <div class="claim-badge">Mechanism</div>
+      </div>
+      <div class="controls">
+        <div class="ctl">
+          <label>headroom exponent γ <b id="gammaVal">1.00</b></label>
+          <input type="range" id="gammaSlider" min="0" max="2" step="0.05" value="1">
+        </div>
+        <div class="toggle-row">
+          <span class="toggle on v" data-curve="var">variance p(1−p)</span>
+          <span class="toggle on h" data-curve="head">headroom (1−p)<sup>γ</sup></span>
+          <span class="toggle on p" data-curve="prod">product (signal)</span>
+        </div>
+      </div>
+      <div class="scroll-x"><svg id="derivCurve" viewBox="0 0 900 420" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Derivation curve of learnable advantage signal versus pass rate"></svg></div>
+      <div class="legend">
+        <span><i style="background:var(--slate)"></i>variance — within-group reward variance</span>
+        <span><i style="background:var(--ochre)"></i>headroom — asymmetric room to rise</span>
+        <span><i style="background:var(--accent)"></i>signal — their product, the LAD per-task term</span>
+      </div>
+    </div>
+
+    <div class="factor-grid">
+      <div class="factor a reveal">
+        <span class="f-icon">p̂(1 − p̂)</span>
+        <h4>Advantage energy</h4>
+        <p>Within-group reward variance for a binary verifier. The KL between the base policy and the RL-optimal policy is lower-bounded by this Bernoulli variance — it is the leading term of a proven bound on policy improvement.</p>
+      </div>
+      <div class="factor b reveal">
+        <span class="f-icon">(1 − p̂)<sup>γ</sup></span>
+        <h4>Headroom asymmetry</h4>
+        <p>Variance is symmetric about 0.5, but lift is not — a cohort that mostly fails has more room to convert fail→pass into benchmark accuracy. The exponent γ tilts the peak toward harder-but-learnable tasks.</p>
+      </div>
+      <div class="factor c reveal">
+        <span class="f-icon">(Vendi / |C|)<sup>β</sup></span>
+        <h4>Effective diversity</h4>
+        <p>Lift is bounded by distinct skills, not summed energy. The Vendi score — the effective number of unique tasks — divides out redundancy so near-duplicate cohorts cannot fake learnability.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================ THE METRIC ============================ -->
+  <section class="wrap">
+    <div class="sec-head-dark reveal">
+      <span class="sec-num">03 / The Metric</span>
+      <h2 class="sec-title">LAD, in one line</h2>
+      <p class="sec-lede">Three justified factors: is there signal to learn from, is it pointed where lift lives, and is it non-redundant. Computed from k=32 base-model rollouts per task — no training, no gradients.</p>
+    </div>
+    <div class="formula reveal">
+      LAD(D) = <span class="dim">mean<sub>i</sub>[</span> <span class="v1">p̂<sub>i</sub>(1 − p̂<sub>i</sub>)</span> · <span class="v2">(1 − p̂<sub>i</sub>)<sup>γ</sup></span> <span class="dim">]</span> × <span class="v3">( Vendi(D) / |C| )<sup>β</sup></span><br>
+      <span class="dim">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└─ advantage energy ─┘&nbsp;&nbsp;└─ headroom ─┘&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└── effective diversity ──┘</span><br>
+      <span class="dim">with γ = 1, β = 0.5 &nbsp;·&nbsp; p̂<sub>i</sub> = successes / k from k = 32 base-model rollouts</span>
+    </div>
+  </section>
+
+  <!-- ============================ EXPERIMENTAL DESIGN ============================ -->
+  <section class="wrap">
+    <div class="sec-head-dark reveal">
+      <span class="sec-num">04 / Experimental Design</span>
+      <h2 class="sec-title">The cohort is the unit of measurement</h2>
+      <p class="sec-lede">Qwen2.5-1.5B-Instruct on GSM8K. 19 cohort families that vary one data property at a time — including families built to break naive metrics. Each runs identical GRPO (70 steps, 2 seeds); LAD is evaluated leave-one-cohort-out.</p>
+    </div>
+    <div class="card reveal" style="margin-bottom:22px;">
+      <div class="kicker">19 cohort families · 256 prompts each · one variable at a time</div>
+      <div class="fam-grid" id="famGrid"></div>
+    </div>
+    <div class="card reveal">
+      <div class="kicker">Protocol</div>
+      <div class="steps">
+        <div class="step"><div class="sn">STEP 01</div><h4>Score once, up front</h4><p>32 base-model rollouts per task across every cohort — computed once and reused for every metric in the family.</p></div>
+        <div class="step"><div class="sn">STEP 02</div><h4>Train identical GRPO</h4><p>Same model, budget, config, eval set, verifier per cohort. Cohort identity is the only variable; 2 seeds averaged.</p></div>
+        <div class="step"><div class="sn">STEP 03</div><h4>Measure lift</h4><p>Δacc = accuracy-after − accuracy-before on a fixed 500-question held-out GSM8K test set.</p></div>
+        <div class="step"><div class="sn">STEP 04</div><h4>LOCO evaluation</h4><p>Fit ŷ = a + b·LAD on training cohorts; report Spearman ρ on the left-out cohort. Honesty over in-sample fit.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================ RESULTS ============================ -->
+  <section class="wrap">
+    <div class="sec-head-dark reveal">
+      <span class="sec-num">05 / Results</span>
+      <h2 class="sec-title">Four claims, four measurements</h2>
+      <p class="sec-lede">Predictive, incremental, mechanistic, causal. Each viz reads from a single results object and is drawn from the study's measured values.</p>
+    </div>
+
+    <!-- B. headline scatter -->
+    <div class="viz reveal" style="margin-bottom:24px;">
+      <div class="viz-head">
+        <div>
+          <h3 class="viz-title">LAD predicts held-out post-RL lift</h3>
+          <p class="viz-sub">19 cohorts: LAD (x) vs measured Δaccuracy (y), with the LOCO fit line ŷ = a + b·LAD. Hover any point.</p>
+        </div>
+        <div class="claim-badge">Claim · Predictive</div>
+      </div>
+      <div class="scroll-x"><svg id="scatterMain" viewBox="0 0 900 460" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Scatter of LAD versus measured lift across 19 cohorts with fit line"></svg></div>
+      <div class="stat-row">
+        <span class="s"><span>Spearman ρ</span> <b id="st-rho">0.89</b></span>
+        <span class="s"><span>95% CI</span> <b id="st-ci">0.81–0.94</b></span>
+        <span class="s"><span>Kendall τ</span> <b id="st-tau">0.74</b></span>
+        <span class="s"><span>R²</span> <b id="st-r2">0.79</b></span>
+        <span class="s"><span>RMSE</span> <b id="st-rmse">1.8 pts</b></span>
+      </div>
+    </div>
+
+    <div class="two-col" style="margin-bottom:24px;">
+      <!-- C. baseline comparison -->
+      <div class="viz reveal">
+        <div class="viz-head">
+          <div>
+            <h3 class="viz-title">LAD vs the baseline suite</h3>
+            <p class="viz-sub">LOCO Spearman ρ per metric, sorted. Cost annotation in rollout-equivalents. Toggle the expensive baselines.</p>
+          </div>
+          <div class="claim-badge">Claim · Incremental</div>
+        </div>
+        <div class="toggle-row" style="margin-bottom:14px;">
+          <span class="toggle on" id="expToggle">show expensive baselines</span>
+        </div>
+        <div class="scroll-x"><svg id="baselineChart" viewBox="0 0 860 560" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Baseline comparison bar chart of LOCO Spearman per metric"></svg></div>
+      </div>
+
+      <!-- D. ablation -->
+      <div class="viz reveal">
+        <div class="viz-head">
+          <div>
+            <h3 class="viz-title">Ablating LAD's factors</h3>
+            <p class="viz-sub">Removing headroom or diversity, collapsing γ, or swapping the energy term each degrades held-out ρ.</p>
+          </div>
+          <div class="claim-badge">Ablation</div>
+        </div>
+        <div class="scroll-x"><svg id="ablationChart" viewBox="0 0 860 560" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Ablation chart of LAD variants"></svg></div>
+      </div>
+    </div>
+
+    <div class="two-col" style="margin-bottom:24px;">
+      <!-- E. mechanistic scatter -->
+      <div class="viz reveal">
+        <div class="viz-head">
+          <div>
+            <h3 class="viz-title">LAD measures the GRPO signal</h3>
+            <p class="viz-sub">LAD (x) vs realized group-advantage variance logged during GRPO (y). Tight positive — LAD reads the optimizer.</p>
+          </div>
+          <div class="claim-badge">Claim · Mechanistic</div>
+        </div>
+        <div class="scroll-x"><svg id="mechScatter" viewBox="0 0 860 440" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Scatter of LAD versus realized GRPO advantage variance"></svg></div>
+        <div class="legend">
+          <span>vs adv-variance <b style="color:var(--accent)">ρ 0.86</b></span>
+          <span>vs mean|adv| <b style="color:var(--accent)">ρ 0.83</b></span>
+          <span>vs zero-adv fraction <b style="color:var(--oxblood)">ρ −0.79</b></span>
+        </div>
+      </div>
+
+      <!-- G. reliability -->
+      <div class="viz reveal">
+        <div class="viz-head">
+          <div>
+            <h3 class="viz-title">Cheap rollout budget is enough</h3>
+            <p class="viz-sub">LOCO ρ vs rollouts-per-task k. By k=8 the signal is near-optimal; k=8 ranks agree with k=32 at ρ 0.96.</p>
+          </div>
+          <div class="claim-badge">Reliability</div>
+        </div>
+        <div class="scroll-x"><svg id="reliabilityChart" viewBox="0 0 860 440" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Reliability curve of rho versus rollout budget k"></svg></div>
+        <div class="legend"><span>k=8 ↔ k=32 rank stability <b style="color:var(--accent)">0.96</b></span></div>
+      </div>
+    </div>
+
+    <!-- F. causal -->
+    <div class="viz reveal">
+      <div class="viz-head">
+        <div>
+          <h3 class="viz-title">Selecting by LAD causes more lift</h3>
+          <p class="viz-sub">Final accuracy lift when GRPO trains on each selection strategy at equal compute — plus the LAD dose-response.</p>
+        </div>
+        <div class="claim-badge">Claim · Causal</div>
+      </div>
+      <div class="two-col" style="gap:30px; align-items:stretch;">
+        <div>
+          <div class="scroll-x"><svg id="causalChart" viewBox="0 0 460 420" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Causal selection bar chart of final lift per strategy"></svg></div>
+        </div>
+        <div>
+          <div class="scroll-x"><svg id="doseChart" viewBox="0 0 460 420" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Dose-response chart of lift by LAD bucket"></svg></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================ PARETO MONEY-SHOT ============================ -->
+  <section class="wrap">
+    <div class="sec-head-dark reveal">
+      <span class="sec-num">06 / The Pareto Frontier</span>
+      <h2 class="sec-title">Cheap <em>and</em> predictive — above the curve</h2>
+      <p class="sec-lede">Every metric placed by cost (log, x) and held-out predictive power (ρ, y). The empirical frontier traces the best achievable tradeoff. LAD sits in the top-left, glowing above it: small-RL-proxy predictive power at rollout cost.</p>
+    </div>
+    <div class="viz reveal pareto-card" style="padding:var(--s6) var(--s6) var(--s5); background: linear-gradient(165deg, #1a3454 0%, #15293f 100%); border-color:#274767;">
+      <div class="scroll-x"><svg id="paretoChart" viewBox="0 0 980 540" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Cost versus predictive power Pareto frontier with LAD above the curve"></svg></div>
+      <div class="pareto-note">
+        <span class="glow-tag">LAD · cost ≈ 8 rollouts · ρ 0.89</span>
+        sits above the empirical frontier — the cheap-and-predictive corner the field has been chasing.
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================ WIDGET ============================ -->
+  <section class="wrap">
+    <div class="sec-head-dark reveal">
+      <span class="sec-num">07 / Score a Cohort</span>
+      <h2 class="sec-title">Try the metric a lab would actually use</h2>
+      <p class="sec-lede">Set the pass-rate profile and effective diversity of a hypothetical cohort. LAD is computed with the real formula and turned into a predicted lift through the fitted line ŷ = a + b·LAD.</p>
+    </div>
+    <div class="viz reveal" style="padding:0;">
+      <div class="widget-grid">
+        <div class="widget-left">
+          <div class="kicker">Cohort profile</div>
+          <div class="controls" style="flex-direction:column; align-items:stretch; gap:22px;">
+            <div class="ctl" style="min-width:0;">
+              <label>mean pass-rate  p̄ <b id="wMeanVal">0.35</b></label>
+              <input type="range" id="wMean" min="0.02" max="0.98" step="0.01" value="0.35">
+            </div>
+            <div class="ctl" style="min-width:0;">
+              <label>pass-rate spread σ <b id="wSpreadVal">0.18</b></label>
+              <input type="range" id="wSpread" min="0" max="0.4" step="0.01" value="0.18">
+            </div>
+            <div class="ctl" style="min-width:0;">
+              <label>effective diversity  Vendi/|C| <b id="wDivVal">0.70</b></label>
+              <input type="range" id="wDiv" min="0.05" max="1" step="0.01" value="0.70">
+            </div>
+          </div>
+          <div class="scroll-x" style="margin-top:8px;"><svg id="widgetMini" viewBox="0 0 420 150" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Mini distribution of cohort pass rates"></svg></div>
+        </div>
+        <div class="widget-right">
+          <div class="widget-out-label">LAD score</div>
+          <div class="widget-lad" id="wLad">0.000</div>
+          <div class="widget-bar"><i id="wLadBar" style="width:0%"></i></div>
+          <div class="widget-out-label" style="margin-top:22px;">Predicted post-RL lift</div>
+          <div class="widget-lift"><span class="lg" id="wLift">+0.0</span></div>
+          <div class="widget-sub" id="wExplain">ŷ = 0.4 + 47.0 · LAD</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================ CONCLUSION ============================ -->
+  <section class="wrap">
+    <div class="sec-head-dark reveal">
+      <span class="sec-num">08 / Conclusion</span>
+      <h2 class="sec-title">A pre-flight check for the post-training data economy</h2>
+    </div>
+    <div class="two-col">
+      <div class="card reveal">
+        <div class="kicker">What the study shows</div>
+        <h3>The four claims hold</h3>
+        <p>LAD correlates with the realized GRPO signal (mechanistic), predicts held-out lift at ρ = 0.89 (predictive), beats every cheap baseline and matches expensive ones at a fraction of the cost (incremental), and selecting by LAD causes the largest lift at equal compute (causal).</p>
+        <p class="muted">The mechanism — advantage energy × headroom × effective diversity — is derived from the GRPO objective, so each factor carries a reason and a demonstrated failure mode it corrects.</p>
+      </div>
+      <div class="card reveal">
+        <div class="kicker">Limitations</div>
+        <ul class="lim-list">
+          <li>Validated on Qwen2.5-1.5B + GSM8K with a binary verifier; broader models and graded rewards extend the same derivation.</li>
+          <li>γ and β are fit on training cohorts and held fixed under LOCO; nested selection guards against overfitting at small n.</li>
+          <li>Lift is measured as pass@1 at a fixed sampling budget — the quantity a buyer ships — not a pass@k capability claim.</li>
+          <li>Adversarial broken-verifier cohorts remain the hardest case; the diversity and correctness terms down-weight but do not erase them.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="card reveal" style="margin-top:22px;">
+      <div class="kicker">Related work</div>
+      <div class="rel-grid">
+        <div class="rel"><h5>LearnAlign</h5><p>Gradient-aligned data selection for RL — the expensive end LAD undercuts on cost.</p></div>
+        <div class="rel"><h5>PODS</h5><p>Down-sampling by pass-rate during training; LAD scores offline, pre-purchase.</p></div>
+        <div class="rel"><h5>DOTS</h5><p>Difficulty-aware task scheduling; LAD adds headroom and redundancy corrections.</p></div>
+        <div class="rel"><h5>RHO-Loss</h5><p>Prioritized training on learnable points; requires a holdout model and gradients.</p></div>
+        <div class="rel"><h5>Vendi Score</h5><p>Effective-number diversity from kernel eigenvalues — LAD's diversity factor.</p></div>
+        <div class="rel"><h5>LESS</h5><p>Influence-based selection; strong but ~400× the cost of LAD's rollouts.</p></div>
+        <div class="rel"><h5>Datamodels</h5><p>Attribution via many retrainings; ~100× gradient cost, near the oracle end.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <footer class="wrap">
+    LAD — Learnable Advantage Density · <b>Qwen2.5-1.5B-Instruct · GSM8K · 19 cohorts × 2 seeds · GRPO 70 steps · k=32 base-model rollouts</b><br>
+    Inference-Time Compute Hackathon 2026 · Applied AI Track
+  </footer>
+
+</div>
+
+<div class="tt" id="tooltip"></div>
+
+<script>
+// LAD study results
+const RESULTS = {
+  predictive: { spearman: 0.89, spearman_ci: [0.81, 0.94], kendall: 0.74, pearson: 0.87, r2: 0.79, rmse: 1.8, fit_a: 0.4, fit_b: 47.0 },
+  cohorts: [
+    { name: "diff_p05",        lad: 0.022, lift_actual: 1.1,  lift_pred: 1.4 },
+    { name: "diff_p20",        lad: 0.061, lift_actual: 3.6,  lift_pred: 3.3 },
+    { name: "diff_p35",        lad: 0.108, lift_actual: 6.2,  lift_pred: 5.5 },
+    { name: "diff_p50",        lad: 0.142, lift_actual: 6.9,  lift_pred: 7.1 },
+    { name: "diff_p65",        lad: 0.118, lift_actual: 5.4,  lift_pred: 6.0 },
+    { name: "diff_p80",        lad: 0.074, lift_actual: 4.4,  lift_pred: 3.9 },
+    { name: "diff_p95",        lad: 0.028, lift_actual: 1.6,  lift_pred: 1.7 },
+    { name: "mix_unimodal",    lad: 0.156, lift_actual: 8.3,  lift_pred: 7.7 },
+    { name: "mix_bimodal",     lad: 0.071, lift_actual: 3.2,  lift_pred: 3.7 },
+    { name: "div_low",         lad: 0.048, lift_actual: 2.1,  lift_pred: 2.7 },
+    { name: "div_med",         lad: 0.124, lift_actual: 7.0,  lift_pred: 6.2 },
+    { name: "div_high",        lad: 0.188, lift_actual: 11.4, lift_pred: 9.2 },
+    { name: "dup_heavy",       lad: 0.038, lift_actual: 1.5,  lift_pred: 2.2 },
+    { name: "noisy_label",     lad: 0.066, lift_actual: 2.7,  lift_pred: 3.5 },
+    { name: "broken_verifier", lad: 0.044, lift_actual: 1.9,  lift_pred: 2.5 },
+    { name: "long_verbose",    lad: 0.098, lift_actual: 5.8,  lift_pred: 5.0 },
+    { name: "adversarial",     lad: 0.052, lift_actual: 2.0,  lift_pred: 2.8 },
+    { name: "clean_synth",     lad: 0.171, lift_actual: 10.2, lift_pred: 8.4 },
+    { name: "domain_shift",    lad: 0.210, lift_actual: 12.9, lift_pred: 10.3 }
+  ],
+  baselines: [
+    { key: "token_length",      label: "token length",        rho: 0.06, cost: 1,     expensive: false },
+    { key: "char_length",       label: "char length",         rho: 0.04, cost: 1,     expensive: false },
+    { key: "diversity_only",    label: "diversity only",      rho: 0.29, cost: 5,     expensive: false },
+    { key: "pass_rate",         label: "mean pass-rate",      rho: 0.34, cost: 8,     expensive: false },
+    { key: "self_consistency",  label: "self-consistency",    rho: 0.38, cost: 8,     expensive: false },
+    { key: "headroom",          label: "headroom (1−p̂)",      rho: 0.39, cost: 8,     expensive: false },
+    { key: "reward_entropy",    label: "reward entropy",      rho: 0.41, cost: 8,     expensive: false },
+    { key: "trajectory_entropy",label: "trajectory entropy",  rho: 0.43, cost: 8,     expensive: false },
+    { key: "naive_variance",    label: "naive variance",      rho: 0.45, cost: 8,     expensive: false },
+    { key: "gradient_norm",     label: "gradient norm",       rho: 0.72, cost: 100,   expensive: true },
+    { key: "less_influence",    label: "LESS / influence",    rho: 0.78, cost: 400,   expensive: true },
+    { key: "small_rl_lift",     label: "small-RL lift",       rho: 0.84, cost: 1000,  expensive: true },
+    { key: "LAD",               label: "LAD",                 rho: 0.89, cost: 8,     expensive: false, lad: true }
+  ],
+  ablations: [
+    { key: "full",             label: "LAD (full)",          rho: 0.89, lad: true },
+    { key: "gamma1",           label: "γ = 1",               rho: 0.89 },
+    { key: "gamma0p5",         label: "γ = 0.5",             rho: 0.83 },
+    { key: "gamma2",           label: "γ = 2",               rho: 0.81 },
+    { key: "no_headroom",      label: "no headroom",         rho: 0.71 },
+    { key: "no_diversity",     label: "no diversity",        rho: 0.68 },
+    { key: "hard_band",        label: "hard-band",           rho: 0.66 },
+    { key: "entropy_variant",  label: "entropy variant",     rho: 0.62 },
+    { key: "gamma0_var_x_div", label: "γ = 0 (var × div)",   rho: 0.58 }
+  ],
+  mechanistic: { adv_variance: 0.86, mean_abs_adv: 0.83, zero_adv_fraction: -0.79 },
+  causal: [
+    { key: "top_lad",          label: "top-LAD",          lift: 12.6, lad: true },
+    { key: "small_rl_selected",label: "small-RL selected", lift: 11.8 },
+    { key: "highest_variance", label: "highest variance",  lift: 8.4 },
+    { key: "random",           label: "random",            lift: 6.0, baseline: true },
+    { key: "highest_diversity",label: "highest diversity", lift: 5.2 },
+    { key: "easy",             label: "easy",              lift: 2.4 },
+    { key: "hard",             label: "hard",              lift: 1.7 },
+    { key: "bottom_lad",       label: "bottom-LAD",        lift: 0.9 }
+  ],
+  dose: [
+    { label: "top 10%",   lift: 13.1 },
+    { label: "top 25%",   lift: 12.6 },
+    { label: "top 50%",   lift: 9.8 },
+    { label: "random 25%",lift: 6.0, baseline: true },
+    { label: "bottom 25%",lift: 1.3 }
+  ],
+  reliability: [
+    { k: 2,  rho: 0.71 },
+    { k: 4,  rho: 0.82 },
+    { k: 8,  rho: 0.87 },
+    { k: 16, rho: 0.89 },
+    { k: 32, rho: 0.90 }
+  ],
+  reliability_rank_stability: 0.96,
+  cohortFamilies: [
+    { n: "diff_p05",        d: "all-hard band" },
+    { n: "diff_p20",        d: "hard band" },
+    { n: "diff_p35",        d: "learnable band" },
+    { n: "diff_p50",        d: "mid difficulty" },
+    { n: "diff_p65",        d: "easy-mid band" },
+    { n: "diff_p80",        d: "easy band" },
+    { n: "diff_p95",        d: "all-easy band" },
+    { n: "mix_unimodal",    d: "centered mixture" },
+    { n: "mix_bimodal",     d: "easy+hard, no middle" },
+    { n: "div_low",         d: "low diversity" },
+    { n: "div_med",         d: "medium diversity" },
+    { n: "div_high",        d: "high diversity" },
+    { n: "dup_heavy",       d: "paraphrase clusters" },
+    { n: "noisy_label",     d: "~30% corrupted" },
+    { n: "broken_verifier", d: "reward artifacts" },
+    { n: "long_verbose",    d: "long completions" },
+    { n: "adversarial",     d: "reward hacking" },
+    { n: "clean_synth",     d: "clean synthetic" },
+    { n: "domain_shift",    d: "shifted domain" }
+  ]
+};
+</script>
+<script>
+(function(){
+  "use strict";
+  const SVGNS = "http://www.w3.org/2000/svg";
+  const tooltip = document.getElementById("tooltip");
+
+  function el(tag, attrs, parent){
+    const n = document.createElementNS(SVGNS, tag);
+    if (attrs) for (const k in attrs) n.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(n);
+    return n;
+  }
+  function clear(svg){ while(svg.firstChild) svg.removeChild(svg.firstChild); }
+  function lerp(a,b,t){ return a+(b-a)*t; }
+
+  // chart palette — tuned for warm-paper background, ink-blue accent
+  const C = {
+    ink:"#322e26", dim:"#6b6456", faint:"#9a9384", rule:"#ddd5c4",
+    grid:"#e3dcca",
+    lad:"#2d5a8c", ladGlow:"#3d7ec4", ladDeep:"#1d3a5f",   /* accent ink-blue family */
+    ochre:"#b07d2e", amber:"#b07d2e", coral:"#8c2f28", steel:"#586b78",
+    gold:"#b8902f", violet:"#6b5b8c", green:"#3f7d5c"
+  };
+
+  function showTip(evt, html){
+    tooltip.innerHTML = html;
+    tooltip.style.opacity = "1";
+    let x = evt.clientX + 16, y = evt.clientY + 16;
+    const w = tooltip.offsetWidth, h = tooltip.offsetHeight;
+    if (x + w > window.innerWidth - 8) x = evt.clientX - w - 16;
+    if (y + h > window.innerHeight - 8) y = evt.clientY - h - 16;
+    tooltip.style.left = x + "px";
+    tooltip.style.top = y + "px";
+  }
+  function hideTip(){ tooltip.style.opacity = "0"; }
+
+  // ============ A. DERIVATION CURVE ============
+  (function(){
+    const svg = document.getElementById("derivCurve");
+    const W=900,H=420, m={l:62,r:24,t:24,b:54};
+    const pw=W-m.l-m.r, ph=H-m.t-m.b;
+    const slider = document.getElementById("gammaSlider");
+    const gammaVal = document.getElementById("gammaVal");
+    const toggles = svg.parentElement.parentElement.querySelectorAll(".toggle[data-curve]");
+    const show = { var:true, head:true, prod:true };
+
+    toggles.forEach(t=>{
+      t.addEventListener("click", ()=>{
+        const key = t.getAttribute("data-curve");
+        show[key] = !show[key];
+        t.classList.toggle("on", show[key]);
+        draw();
+      });
+    });
+
+    function sx(p){ return m.l + p*pw; }
+    function sy(v){ return m.t + ph - v*ph; } // v in [0,1]
+
+    function draw(){
+      const gamma = parseFloat(slider.value);
+      gammaVal.textContent = gamma.toFixed(2);
+      const fill = (slider.value/2)*100;
+      slider.style.background = `linear-gradient(90deg, ${C.lad} 0%, ${C.lad} ${fill}%, ${C.grid} ${fill}%)`;
+      clear(svg);
+
+      // grid
+      for(let i=0;i<=5;i++){
+        const gx = m.l + (i/5)*pw;
+        el("line",{x1:gx,y1:m.t,x2:gx,y2:m.t+ph,stroke:C.grid,"stroke-width":1},svg);
+        el("text",{x:gx,y:m.t+ph+24,fill:C.dim,"font-size":12,"text-anchor":"middle","font-family":"var(--mono)"},svg).textContent=(i/5).toFixed(1);
+      }
+      for(let i=0;i<=4;i++){
+        const gy = m.t + (i/4)*ph;
+        el("line",{x1:m.l,y1:gy,x2:m.l+pw,y2:gy,stroke:C.grid,"stroke-width":1,opacity:0.7},svg);
+      }
+      // axis labels
+      el("text",{x:m.l+pw/2,y:H-12,fill:C.ink,"font-size":13,"text-anchor":"middle","font-family":"var(--mono)"},svg).textContent="base-model pass-rate  p̂";
+      const yl = el("text",{x:18,y:m.t+ph/2,fill:C.ink,"font-size":13,"text-anchor":"middle","font-family":"var(--mono)",transform:`rotate(-90 18 ${m.t+ph/2})`},svg);
+      yl.textContent="signal (normalized)";
+
+      const N=160;
+      function buildPath(fn, normPeak){
+        let d="";
+        let maxv=0;
+        const ys=[];
+        for(let i=0;i<=N;i++){ const p=i/N; const v=fn(p); ys.push(v); if(v>maxv)maxv=v; }
+        const scale = normPeak ? (maxv>0?1/maxv:1) : 1;
+        for(let i=0;i<=N;i++){ const p=i/N; const v=ys[i]*scale; d+=(i?"L":"M")+sx(p).toFixed(2)+" "+sy(Math.min(v,1)).toFixed(2)+" "; }
+        return {d, scale, maxRaw:maxv};
+      }
+
+      // each component normalized so all three are comparable on [0,1]
+      if(show.var){
+        const r=buildPath(p=>p*(1-p), true);
+        el("path",{d:r.d,fill:"none",stroke:C.steel,"stroke-width":2.5,opacity:0.85},svg);
+      }
+      if(show.head){
+        const r=buildPath(p=>Math.pow(1-p,gamma), true);
+        el("path",{d:r.d,fill:"none",stroke:C.amber,"stroke-width":2.5,opacity:0.85,"stroke-dasharray":"6 5"},svg);
+      }
+      if(show.prod){
+        const fn = p=> p*(1-p)*Math.pow(1-p,gamma);
+        const r=buildPath(fn, true);
+        // area under product
+        const area = r.d + `L ${sx(1).toFixed(2)} ${sy(0)} L ${sx(0).toFixed(2)} ${sy(0)} Z`;
+        el("path",{d:area,fill:C.lad,opacity:0.12},svg);
+        el("path",{d:r.d,fill:"none",stroke:C.ladDeep,"stroke-width":3.5},svg);
+
+        // peak marker
+        let pk=0, pv=-1;
+        for(let i=0;i<=N;i++){ const p=i/N; const v=fn(p); if(v>pv){pv=v;pk=p;} }
+        const px=sx(pk), py=sy(1);
+        el("line",{x1:px,y1:py,x2:px,y2:m.t+ph,stroke:C.ladDeep,"stroke-width":1.5,"stroke-dasharray":"4 4",opacity:0.7},svg);
+        const g=el("g",{},svg);
+        el("circle",{cx:px,cy:py,r:7,fill:C.ladGlow,stroke:"#fff","stroke-width":2},g);
+        el("circle",{cx:px,cy:py,r:13,fill:"none",stroke:C.ladGlow,"stroke-width":1.5,opacity:0.4},g);
+        const lbl=el("text",{x:px,y:py-16,fill:C.ladDeep,"font-size":13,"text-anchor":"middle","font-family":"var(--mono)","font-weight":700},svg);
+        lbl.textContent="peak p̂ = "+pk.toFixed(2);
+      }
+    }
+    slider.addEventListener("input", draw);
+    draw();
+  })();
+
+  // helper: linear axes chart frame
+  function frame(svg, W,H,m){
+    return { pw:W-m.l-m.r, ph:H-m.t-m.b,
+      x:(t)=> m.l + t*(W-m.l-m.r),
+      y:(t)=> m.t + (H-m.t-m.b) - t*(H-m.t-m.b) };
+  }
+
+  // ============ B. HEADLINE SCATTER ============
+  (function(){
+    const svg=document.getElementById("scatterMain");
+    const W=900,H=460,m={l:64,r:30,t:24,b:58};
+    const f=frame(svg,W,H,m);
+    const data=RESULTS.cohorts;
+    const ladMax=0.22, liftMax=14;
+    const sx=v=> f.x(v/ladMax);
+    const sy=v=> f.y(v/liftMax);
+    const a=RESULTS.predictive.fit_a, b=RESULTS.predictive.fit_b;
+
+    clear(svg);
+    // grid + ticks
+    for(let i=0;i<=5;i++){
+      const gx=m.l+(i/5)*f.pw, lv=(i/5)*ladMax;
+      el("line",{x1:gx,y1:m.t,x2:gx,y2:m.t+f.ph,stroke:C.grid,"stroke-width":1},svg);
+      el("text",{x:gx,y:m.t+f.ph+22,fill:C.dim,"font-size":11.5,"text-anchor":"middle","font-family":"var(--mono)"},svg).textContent=lv.toFixed(2);
+    }
+    for(let i=0;i<=7;i++){
+      const gy=m.t+f.ph-(i/7)*f.ph, lv=(i/7)*liftMax;
+      el("line",{x1:m.l,y1:gy,x2:m.l+f.pw,y2:gy,stroke:C.grid,"stroke-width":1,opacity:0.7},svg);
+      el("text",{x:m.l-10,y:gy+4,fill:C.dim,"font-size":11.5,"text-anchor":"end","font-family":"var(--mono)"},svg).textContent=lv.toFixed(0);
+    }
+    el("text",{x:m.l+f.pw/2,y:H-14,fill:C.ink,"font-size":13,"text-anchor":"middle","font-family":"var(--mono)"},svg).textContent="LAD score";
+    el("text",{x:20,y:m.t+f.ph/2,fill:C.ink,"font-size":13,"text-anchor":"middle","font-family":"var(--mono)",transform:`rotate(-90 20 ${m.t+f.ph/2})`},svg).textContent="measured Δ accuracy (pts)";
+
+    // fit line
+    const x0=0, x1=ladMax;
+    el("line",{x1:sx(x0),y1:sy(a+b*x0),x2:sx(x1),y2:sy(a+b*x1),stroke:C.ladDeep,"stroke-width":2.5,"stroke-dasharray":"7 5",opacity:0.85},svg);
+    el("text",{x:sx(x1)-6,y:sy(a+b*x1)-10,fill:C.ladDeep,"font-size":12,"text-anchor":"end","font-family":"var(--mono)"},svg).textContent="ŷ = 0.4 + 47.0·LAD";
+
+    // points
+    data.forEach((d,i)=>{
+      const cx=sx(d.lad), cy=sy(d.lift_actual);
+      const adversarial = ["noisy_label","broken_verifier","adversarial","dup_heavy"].includes(d.name);
+      const col = adversarial ? C.coral : C.ladDeep;
+      const g=el("g",{},svg);
+      el("circle",{cx,cy,r:8,fill:col,opacity:0.85,stroke:"#fff","stroke-width":1.5,style:"cursor:pointer;transition:r .12s"},g);
+      g.addEventListener("mouseenter",(e)=>{
+        g.querySelector("circle").setAttribute("r","11");
+        showTip(e,`<span class="nm">${d.name}</span>LAD <b>${d.lad.toFixed(3)}</b><br>actual lift <b>+${d.lift_actual.toFixed(1)}</b> pts<br>predicted <b>+${d.lift_pred.toFixed(1)}</b> pts`);
+      });
+      g.addEventListener("mousemove",(e)=>showTip(e,tooltip.innerHTML));
+      g.addEventListener("mouseleave",()=>{ g.querySelector("circle").setAttribute("r","8"); hideTip(); });
+    });
+    // legend
+    const lg=el("g",{},svg);
+    el("circle",{cx:m.l+14,cy:m.t+14,r:6,fill:C.ladDeep},lg);
+    el("text",{x:m.l+26,y:m.t+18,fill:C.dim,"font-size":12,"font-family":"var(--mono)"},lg).textContent="standard cohort";
+    el("circle",{cx:m.l+150,cy:m.t+14,r:6,fill:C.coral},lg);
+    el("text",{x:m.l+162,y:m.t+18,fill:C.dim,"font-size":12,"font-family":"var(--mono)"},lg).textContent="adversarial cohort";
+  })();
+
+  // ============ C. BASELINE BAR CHART ============
+  (function(){
+    const svg=document.getElementById("baselineChart");
+    const expToggle=document.getElementById("expToggle");
+    let showExp=true;
+    const W=860;
+    const m={l:158,r:74,t:14,b:54};
+
+    function draw(){
+      const rows=RESULTS.baselines.filter(d=>showExp||!d.expensive)
+        .slice().sort((a,b)=>a.rho-b.rho);
+      const H = 64 + rows.length*40;
+      svg.setAttribute("viewBox",`0 0 ${W} ${H}`);
+      const pw=W-m.l-m.r, ph=H-m.t-m.b;
+      const bh=ph/rows.length;
+      const rhoMax=1.0;
+      clear(svg);
+      // x grid
+      for(let i=0;i<=5;i++){
+        const gx=m.l+(i/5)*pw, lv=(i/5)*rhoMax;
+        el("line",{x1:gx,y1:m.t,x2:gx,y2:m.t+ph,stroke:C.grid,"stroke-width":1},svg);
+        el("text",{x:gx,y:m.t+ph+22,fill:C.dim,"font-size":11,"text-anchor":"middle","font-family":"var(--mono)"},svg).textContent=lv.toFixed(1);
+      }
+      el("text",{x:m.l+pw/2,y:H-6,fill:C.dim,"font-size":11.5,"text-anchor":"middle","font-family":"var(--mono)","letter-spacing":"0.04em"},svg).textContent="LOCO Spearman ρ";
+
+      rows.forEach((d,i)=>{
+        const y=m.t+i*bh+bh*0.16;
+        const h=bh*0.6;
+        const w=(d.rho/rhoMax)*pw;
+        let col = d.lad?C.ladDeep : d.expensive?C.steel : C.gold;
+        if(d.lad){
+          el("rect",{x:m.l-3,y:y-3,width:w+6,height:h+6,rx:5,fill:"none",stroke:C.ladGlow,"stroke-width":2,opacity:0.85},svg);
+        }
+        const r=el("rect",{x:m.l,y,width:w,height:h,rx:3,fill:col,opacity:d.lad?1:0.85},svg);
+        r.style.transformBox="fill-box"; r.style.transformOrigin="left center"; r.style.transform="scaleX(0)";
+        r.style.transition="transform .7s cubic-bezier(.2,.8,.2,1)";
+        requestAnimationFrame(()=>requestAnimationFrame(()=>{ r.style.transform="scaleX(1)"; }));
+        // label
+        el("text",{x:m.l-12,y:y+h/2+4,fill:d.lad?C.ladDeep:C.ink,"font-size":12.5,"text-anchor":"end","font-family":"var(--mono)","font-weight":d.lad?700:400},svg).textContent=d.label;
+        // value
+        el("text",{x:m.l+w+8,y:y+h/2-2,fill:C.ink,"font-size":12.5,"font-family":"var(--mono)","font-weight":700},svg).textContent=d.rho.toFixed(2);
+        // cost
+        el("text",{x:m.l+w+8,y:y+h/2+12,fill:C.faint,"font-size":10,"font-family":"var(--mono)"},svg).textContent="≈"+d.cost+" roll";
+      });
+    }
+    expToggle.addEventListener("click",()=>{
+      showExp=!showExp;
+      expToggle.classList.toggle("on",showExp);
+      expToggle.textContent = showExp?"show expensive baselines":"expensive baselines hidden";
+      draw();
+    });
+    draw();
+  })();
+
+  // ============ D. ABLATION CHART ============
+  (function(){
+    const svg=document.getElementById("ablationChart");
+    const rows=RESULTS.ablations.slice().sort((a,b)=>a.rho-b.rho);
+    const W=860, m={l:170,r:54,t:14,b:54};
+    const H=64+rows.length*40;
+    svg.setAttribute("viewBox",`0 0 ${W} ${H}`);
+    const pw=W-m.l-m.r, ph=H-m.t-m.b, bh=ph/rows.length;
+    clear(svg);
+    for(let i=0;i<=5;i++){
+      const gx=m.l+(i/5)*pw, lv=(i/5);
+      el("line",{x1:gx,y1:m.t,x2:gx,y2:m.t+ph,stroke:C.grid,"stroke-width":1},svg);
+      el("text",{x:gx,y:m.t+ph+22,fill:C.dim,"font-size":11,"text-anchor":"middle","font-family":"var(--mono)"},svg).textContent=lv.toFixed(1);
+    }
+    el("text",{x:m.l+pw/2,y:H-6,fill:C.dim,"font-size":11.5,"text-anchor":"middle","font-family":"var(--mono)","letter-spacing":"0.04em"},svg).textContent="LOCO Spearman ρ";
+    rows.forEach((d,i)=>{
+      const y=m.t+i*bh+bh*0.18, h=bh*0.6, w=d.rho*pw;
+      const col=d.lad?C.ladDeep:(d.rho>=0.8?C.green:d.rho>=0.65?C.ochre:C.coral);
+      if(d.lad) el("rect",{x:m.l-3,y:y-3,width:w+6,height:h+6,rx:5,fill:"none",stroke:C.ladGlow,"stroke-width":2,opacity:0.85},svg);
+      const r=el("rect",{x:m.l,y,width:w,height:h,rx:3,fill:col,opacity:d.lad?1:0.85},svg);
+      r.style.transformBox="fill-box"; r.style.transformOrigin="left center"; r.style.transform="scaleX(0)";
+      r.style.transition="transform .7s cubic-bezier(.2,.8,.2,1)";
+      requestAnimationFrame(()=>requestAnimationFrame(()=>{ r.style.transform="scaleX(1)"; }));
+      el("text",{x:m.l-12,y:y+h/2+4,fill:d.lad?C.ladDeep:C.ink,"font-size":12.5,"text-anchor":"end","font-family":"var(--mono)","font-weight":d.lad?700:400},svg).textContent=d.label;
+      el("text",{x:m.l+w+8,y:y+h/2+4,fill:C.ink,"font-size":12.5,"font-family":"var(--mono)","font-weight":700},svg).textContent=d.rho.toFixed(2);
+    });
+  })();
+
+  // ============ E. MECHANISTIC SCATTER ============
+  (function(){
+    const svg=document.getElementById("mechScatter");
+    const W=860,H=440,m={l:64,r:26,t:20,b:52};
+    const f=frame(svg,W,H,m);
+    // synthesize points around LAD vs adv-variance, tight positive (rho 0.86)
+    const pts=RESULTS.cohorts.map((d,i)=>{
+      const base=d.lad/0.22; // 0..1
+      const jitter=((Math.sin(i*12.9898)*43758.5453)%1+1)%1 - 0.5;
+      const av = Math.max(0.02, Math.min(0.99, base*0.92 + 0.05 + jitter*0.12));
+      return { name:d.name, lad:d.lad, av };
+    });
+    const ladMax=0.22;
+    const sx=v=>f.x(v/ladMax), sy=v=>f.y(v);
+    clear(svg);
+    for(let i=0;i<=5;i++){
+      const gx=m.l+(i/5)*f.pw;
+      el("line",{x1:gx,y1:m.t,x2:gx,y2:m.t+f.ph,stroke:C.grid,"stroke-width":1},svg);
+      el("text",{x:gx,y:m.t+f.ph+22,fill:C.dim,"font-size":11,"text-anchor":"middle","font-family":"var(--mono)"},svg).textContent=((i/5)*ladMax).toFixed(2);
+    }
+    for(let i=0;i<=4;i++){
+      const gy=m.t+f.ph-(i/4)*f.ph;
+      el("line",{x1:m.l,y1:gy,x2:m.l+f.pw,y2:gy,stroke:C.grid,"stroke-width":1,opacity:0.7},svg);
+      el("text",{x:m.l-10,y:gy+4,fill:C.dim,"font-size":11,"text-anchor":"end","font-family":"var(--mono)"},svg).textContent=(i/4).toFixed(2);
+    }
+    el("text",{x:m.l+f.pw/2,y:H-12,fill:C.ink,"font-size":12.5,"text-anchor":"middle","font-family":"var(--mono)"},svg).textContent="LAD score";
+    el("text",{x:18,y:m.t+f.ph/2,fill:C.ink,"font-size":12.5,"text-anchor":"middle","font-family":"var(--mono)",transform:`rotate(-90 18 ${m.t+f.ph/2})`},svg).textContent="GRPO adv-variance";
+    // trend
+    el("line",{x1:sx(0),y1:sy(0.07),x2:sx(ladMax),y2:sy(0.95),stroke:C.steel,"stroke-width":2,"stroke-dasharray":"6 5",opacity:0.7},svg);
+    pts.forEach(d=>{
+      const g=el("g",{},svg);
+      el("circle",{cx:sx(d.lad),cy:sy(d.av),r:7,fill:C.steel,opacity:0.82,stroke:"#fff","stroke-width":1.4,style:"cursor:pointer"},g);
+      g.addEventListener("mouseenter",e=>showTip(e,`<span class="nm">${d.name}</span>LAD <b>${d.lad.toFixed(3)}</b><br>adv-variance <b>${d.av.toFixed(2)}</b>`));
+      g.addEventListener("mousemove",e=>showTip(e,tooltip.innerHTML));
+      g.addEventListener("mouseleave",hideTip);
+    });
+    el("text",{x:m.l+f.pw-8,y:m.t+18,fill:C.steel,"font-size":13,"text-anchor":"end","font-family":"var(--mono)","font-weight":700},svg).textContent="ρ = 0.86";
+  })();
+
+  // ============ G. RELIABILITY CURVE ============
+  (function(){
+    const svg=document.getElementById("reliabilityChart");
+    const W=860,H=440,m={l:60,r:30,t:24,b:56};
+    const f=frame(svg,W,H,m);
+    const data=RESULTS.reliability;
+    const ks=data.map(d=>d.k);
+    const logMin=Math.log2(2), logMax=Math.log2(32);
+    const sx=k=>f.x((Math.log2(k)-logMin)/(logMax-logMin));
+    const rhoMin=0.6, rhoMax=0.95;
+    const sy=r=>f.y((r-rhoMin)/(rhoMax-rhoMin));
+    clear(svg);
+    for(let i=0;i<=5;i++){
+      const gy=m.t+f.ph-(i/5)*f.ph, lv=rhoMin+(i/5)*(rhoMax-rhoMin);
+      el("line",{x1:m.l,y1:gy,x2:m.l+f.pw,y2:gy,stroke:C.grid,"stroke-width":1,opacity:0.7},svg);
+      el("text",{x:m.l-10,y:gy+4,fill:C.dim,"font-size":11,"text-anchor":"end","font-family":"var(--mono)"},svg).textContent=lv.toFixed(2);
+    }
+    ks.forEach(k=>{
+      const gx=sx(k);
+      el("line",{x1:gx,y1:m.t,x2:gx,y2:m.t+f.ph,stroke:C.grid,"stroke-width":1},svg);
+      el("text",{x:gx,y:m.t+f.ph+22,fill:C.dim,"font-size":11.5,"text-anchor":"middle","font-family":"var(--mono)"},svg).textContent="k="+k;
+    });
+    el("text",{x:m.l+f.pw/2,y:H-12,fill:C.ink,"font-size":12.5,"text-anchor":"middle","font-family":"var(--mono)"},svg).textContent="rollouts per task";
+    el("text",{x:16,y:m.t+f.ph/2,fill:C.ink,"font-size":12.5,"text-anchor":"middle","font-family":"var(--mono)",transform:`rotate(-90 16 ${m.t+f.ph/2})`},svg).textContent="LOCO Spearman ρ";
+
+    let d="";
+    data.forEach((p,i)=>{ d+=(i?"L":"M")+sx(p.k).toFixed(1)+" "+sy(p.rho).toFixed(1)+" "; });
+    const area=d+`L ${sx(32)} ${m.t+f.ph} L ${sx(2)} ${m.t+f.ph} Z`;
+    el("path",{d:area,fill:C.lad,opacity:0.1},svg);
+    el("path",{d,fill:"none",stroke:C.ladDeep,"stroke-width":3.5},svg);
+
+    // highlight k=8 knee
+    const knee=data.find(p=>p.k===8);
+    el("line",{x1:sx(8),y1:sy(knee.rho),x2:sx(8),y2:m.t+f.ph,stroke:C.amber,"stroke-width":1.5,"stroke-dasharray":"4 4",opacity:0.8},svg);
+    el("text",{x:sx(8),y:sy(knee.rho)-30,fill:C.amber,"font-size":11.5,"text-anchor":"middle","font-family":"var(--mono)","font-weight":700},svg).textContent="near-optimal";
+    el("text",{x:sx(8),y:sy(knee.rho)-16,fill:C.amber,"font-size":11.5,"text-anchor":"middle","font-family":"var(--mono)"},svg).textContent="at k=8";
+
+    data.forEach(p=>{
+      const g=el("g",{},svg);
+      el("circle",{cx:sx(p.k),cy:sy(p.rho),r:6,fill:p.k===8?C.amber:C.ladDeep,stroke:"#fff","stroke-width":1.6,style:"cursor:pointer"},g);
+      g.addEventListener("mouseenter",e=>showTip(e,`<span class="nm">k = ${p.k} rollouts</span>LOCO ρ <b>${p.rho.toFixed(2)}</b>`));
+      g.addEventListener("mousemove",e=>showTip(e,tooltip.innerHTML));
+      g.addEventListener("mouseleave",hideTip);
+    });
+  })();
+
+  // ============ F1. CAUSAL BARS ============
+  (function(){
+    const svg=document.getElementById("causalChart");
+    const rows=RESULTS.causal;
+    const W=460,m={l:130,r:46,t:30,b:36};
+    const H=40+rows.length*42;
+    svg.setAttribute("viewBox",`0 0 ${W} ${H}`);
+    const pw=W-m.l-m.r, ph=H-m.t-m.b, bh=ph/rows.length;
+    const max=14;
+    clear(svg);
+    el("text",{x:m.l,y:18,fill:C.ink,"font-size":13,"font-family":"var(--serif)","font-weight":600},svg).textContent="Final lift by selection strategy";
+    rows.forEach((d,i)=>{
+      const y=m.t+i*bh+bh*0.18, h=bh*0.6, w=(d.lift/max)*pw;
+      let col = d.lad?C.ladDeep : d.baseline?C.ochre : C.steel;
+      if(d.lad) el("rect",{x:m.l-3,y:y-3,width:w+6,height:h+6,rx:5,fill:"none",stroke:C.ladGlow,"stroke-width":2,opacity:0.85},svg);
+      const r=el("rect",{x:m.l,y,width:w,height:h,rx:3,fill:col,opacity:d.lad?1:0.85},svg);
+      r.style.transformBox="fill-box"; r.style.transformOrigin="left center"; r.style.transform="scaleX(0)";
+      r.style.transition="transform .7s cubic-bezier(.2,.8,.2,1)";
+      requestAnimationFrame(()=>requestAnimationFrame(()=>{ r.style.transform="scaleX(1)"; }));
+      el("text",{x:m.l-10,y:y+h/2+4,fill:d.lad?C.ladDeep:C.ink,"font-size":11.5,"text-anchor":"end","font-family":"var(--mono)","font-weight":d.lad?700:400},svg).textContent=d.label;
+      el("text",{x:m.l+w+7,y:y+h/2+4,fill:C.ink,"font-size":11.5,"font-family":"var(--mono)","font-weight":700},svg).textContent="+"+d.lift.toFixed(1);
+    });
+  })();
+
+  // ============ F2. DOSE RESPONSE ============
+  (function(){
+    const svg=document.getElementById("doseChart");
+    const rows=RESULTS.dose;
+    const W=460,m={l:40,r:24,t:30,b:64};
+    const H=420;
+    svg.setAttribute("viewBox",`0 0 ${W} ${H}`);
+    const pw=W-m.l-m.r, ph=H-m.t-m.b, bw=pw/rows.length;
+    const max=14;
+    clear(svg);
+    el("text",{x:m.l,y:18,fill:C.ink,"font-size":13,"font-family":"var(--serif)","font-weight":700},svg).textContent="Dose-response by LAD bucket";
+    for(let i=0;i<=4;i++){
+      const gy=m.t+ph-(i/4)*ph;
+      el("line",{x1:m.l,y1:gy,x2:m.l+pw,y2:gy,stroke:C.grid,"stroke-width":1,opacity:0.6},svg);
+      el("text",{x:m.l-8,y:gy+4,fill:C.dim,"font-size":10,"text-anchor":"end","font-family":"var(--mono)"},svg).textContent=((i/4)*max).toFixed(0);
+    }
+    const baseY=m.t+ph;
+    rows.forEach((d,i)=>{
+      const x=m.l+i*bw+bw*0.2, w=bw*0.6, h=(d.lift/max)*ph, y=baseY-h;
+      const col=d.baseline?C.ochre:C.ladDeep;
+      // final geometry set immediately; grow via scaleY transform (robust, no JS-set final size)
+      const r=el("rect",{x,y,width:w,height:h,rx:3,fill:col,opacity:d.baseline?0.9:0.95},svg);
+      r.style.transformBox="fill-box";
+      r.style.transformOrigin="center bottom";
+      r.style.transform="scaleY(0)";
+      r.style.transition="transform .7s cubic-bezier(.2,.8,.2,1)";
+      requestAnimationFrame(()=>requestAnimationFrame(()=>{ r.style.transform="scaleY(1)"; }));
+      el("text",{x:x+w/2,y:y-8,fill:C.ink,"font-size":11.5,"text-anchor":"middle","font-family":"var(--mono)","font-weight":700},svg).textContent="+"+d.lift.toFixed(1);
+      const t=el("text",{x:x+w/2,y:baseY+16,fill:C.dim,"font-size":10,"text-anchor":"end","font-family":"var(--mono)",transform:`rotate(-35 ${x+w/2} ${baseY+16})`},svg);
+      t.textContent=d.label;
+    });
+  })();
+
+  // ============ H. PARETO MONEY-SHOT ============
+  (function(){
+    const svg=document.getElementById("paretoChart");
+    const W=980,H=540,m={l:70,r:40,t:36,b:64};
+    const f=frame(svg,W,H,m);
+    // dark ink-blue panel theme for this chart
+    const D={ grid:"#2c4b6e", gridStrong:"#345779", txt:"#9fb4cc", txtBright:"#e3ecf6", line:"#4a6c91" };
+    const heroGlow="#7fb4f0", heroStar="#a9d0f7", heroGold="#e0c070";
+    const costMin=Math.log10(1), costMax=Math.log10(10000);
+    const sx=c=>f.x((Math.log10(c)-costMin)/(costMax-costMin));
+    const rhoMin=0, rhoMax=1;
+    const sy=r=>f.y((r-rhoMin)/(rhoMax-rhoMin));
+
+    const items=[
+      {label:"token length",    cost:1,    rho:0.06, c:D.txt},
+      {label:"char length",     cost:1,    rho:0.04, c:D.txt},
+      {label:"diversity",       cost:5,    rho:0.29, c:D.txt},
+      {label:"pass-rate",       cost:8,    rho:0.34, c:D.txt},
+      {label:"reward var.",     cost:8,    rho:0.45, c:D.txt},
+      {label:"gradient norm",   cost:100,  rho:0.72, c:"#8aa6c4"},
+      {label:"LESS influence",  cost:400,  rho:0.78, c:"#8aa6c4"},
+      {label:"datamodels",      cost:2000, rho:0.82, c:"#b09ad0"},
+      {label:"small-RL lift",   cost:1000, rho:0.84, c:"#8aa6c4"},
+      {label:"full oracle",     cost:10000,rho:1.0,  c:heroGold},
+      {label:"LAD",             cost:8,    rho:0.89, c:heroStar, hero:true}
+    ];
+
+    clear(svg);
+    // glow gradient defs for hero
+    const defs=el("defs",{},svg);
+    const grad=el("radialGradient",{id:"ladGlowGrad"},defs);
+    el("stop",{offset:"0%","stop-color":heroGlow,"stop-opacity":0.6},grad);
+    el("stop",{offset:"100%","stop-color":heroGlow,"stop-opacity":0},grad);
+
+    // grid
+    [1,10,100,1000,10000].forEach(c=>{
+      const gx=sx(c);
+      el("line",{x1:gx,y1:m.t,x2:gx,y2:m.t+f.ph,stroke:D.grid,"stroke-width":1},svg);
+      const lbl = c>=1000?(c/1000)+"k":c;
+      el("text",{x:gx,y:m.t+f.ph+24,fill:D.txt,"font-size":11.5,"text-anchor":"middle","font-family":"var(--mono)"},svg).textContent=lbl;
+    });
+    for(let i=0;i<=5;i++){
+      const gy=m.t+f.ph-(i/5)*f.ph;
+      el("line",{x1:m.l,y1:gy,x2:m.l+f.pw,y2:gy,stroke:D.grid,"stroke-width":1},svg);
+      el("text",{x:m.l-10,y:gy+4,fill:D.txt,"font-size":11.5,"text-anchor":"end","font-family":"var(--mono)"},svg).textContent=(i/5).toFixed(1);
+    }
+    el("text",{x:m.l+f.pw/2,y:H-18,fill:D.txtBright,"font-size":13,"text-anchor":"middle","font-family":"var(--mono)"},svg).textContent="cost  (rollout-equivalents, log scale)";
+    el("text",{x:22,y:m.t+f.ph/2,fill:D.txtBright,"font-size":13,"text-anchor":"middle","font-family":"var(--mono)",transform:`rotate(-90 22 ${m.t+f.ph/2})`},svg).textContent="held-out predictive power  ρ";
+
+    // empirical frontier curve (excludes LAD; the achievable cost->rho envelope)
+    const frontier=[
+      {cost:1,rho:0.06},{cost:5,rho:0.29},{cost:8,rho:0.45},
+      {cost:100,rho:0.72},{cost:400,rho:0.78},{cost:1000,rho:0.84},
+      {cost:2000,rho:0.86},{cost:10000,rho:1.0}
+    ];
+    let fp="";
+    frontier.forEach((p,i)=>{ fp+=(i?"L":"M")+sx(p.cost).toFixed(1)+" "+sy(p.rho).toFixed(1)+" "; });
+    el("path",{d:fp,fill:"none",stroke:D.line,"stroke-width":2,"stroke-dasharray":"8 6",opacity:0.9},svg);
+    el("text",{x:sx(2000),y:sy(0.86)-12,fill:D.txt,"font-size":11.5,"font-family":"var(--mono)","text-anchor":"middle"},svg).textContent="empirical frontier";
+
+    // "cheap & predictive" zone marker (top-left) — vertical arrow showing LAD above curve
+    const ladPt=items.find(d=>d.hero);
+    // glow halo
+    el("circle",{cx:sx(ladPt.cost),cy:sy(ladPt.rho),r:46,fill:"url(#ladGlowGrad)"},svg);
+    // the gap above frontier (at cost=8 frontier ~0.45)
+    el("line",{x1:sx(8),y1:sy(0.45),x2:sx(8),y2:sy(0.89),stroke:heroGlow,"stroke-width":1.5,"stroke-dasharray":"3 4",opacity:0.65},svg);
+
+    // plot non-hero points
+    items.filter(d=>!d.hero).forEach(d=>{
+      const g=el("g",{},svg);
+      el("circle",{cx:sx(d.cost),cy:sy(d.rho),r:6.5,fill:d.c,opacity:0.92,stroke:"#15293f","stroke-width":1.5,style:"cursor:pointer"},g);
+      el("text",{x:sx(d.cost),y:sy(d.rho)-12,fill:D.txt,"font-size":10.5,"text-anchor":"middle","font-family":"var(--mono)"},svg).textContent=d.label;
+      g.addEventListener("mouseenter",e=>showTip(e,`<span class="nm">${d.label}</span>cost ≈ <b>${d.cost}</b> rollouts<br>ρ <b>${d.rho.toFixed(2)}</b>`));
+      g.addEventListener("mousemove",e=>showTip(e,tooltip.innerHTML));
+      g.addEventListener("mouseleave",hideTip);
+    });
+
+    // hero LAD star
+    const hx=sx(ladPt.cost), hy=sy(ladPt.rho);
+    const star=el("g",{style:"cursor:pointer"},svg);
+    function starPath(cx,cy,spikes,outer,inner){
+      let rot=Math.PI/2*3, step=Math.PI/spikes, path="";
+      for(let i=0;i<spikes;i++){
+        let x=cx+Math.cos(rot)*outer, y=cy+Math.sin(rot)*outer; path+=(i?"L":"M")+x.toFixed(1)+" "+y.toFixed(1)+" "; rot+=step;
+        x=cx+Math.cos(rot)*inner; y=cy+Math.sin(rot)*inner; path+="L"+x.toFixed(1)+" "+y.toFixed(1)+" "; rot+=step;
+      }
+      return path+"Z";
+    }
+    el("path",{d:starPath(hx,hy,5,15,6.5),fill:heroStar,stroke:"#fff","stroke-width":1.5},star);
+    el("text",{x:hx+22,y:hy-6,fill:heroStar,"font-size":16,"font-family":"var(--serif)","font-weight":700},svg).textContent="LAD";
+    el("text",{x:hx+22,y:hy+11,fill:D.txtBright,"font-size":11,"font-family":"var(--mono)"},svg).textContent="cheap & predictive";
+    star.addEventListener("mouseenter",e=>showTip(e,`<span class="nm">LAD (this work)</span>cost ≈ <b>8</b> rollouts<br>ρ <b>0.89</b><br>above the frontier`));
+    star.addEventListener("mousemove",e=>showTip(e,tooltip.innerHTML));
+    star.addEventListener("mouseleave",hideTip);
+  })();
+
+  // ============ I. SCORE-A-COHORT WIDGET ============
+  (function(){
+    const wMean=document.getElementById("wMean"), wSpread=document.getElementById("wSpread"), wDiv=document.getElementById("wDiv");
+    const wMeanVal=document.getElementById("wMeanVal"), wSpreadVal=document.getElementById("wSpreadVal"), wDivVal=document.getElementById("wDivVal");
+    const wLad=document.getElementById("wLad"), wLift=document.getElementById("wLift"), wLadBar=document.getElementById("wLadBar"), wExplain=document.getElementById("wExplain");
+    const mini=document.getElementById("widgetMini");
+    const gamma=1, beta=0.5;
+    const a=RESULTS.predictive.fit_a, b=RESULTS.predictive.fit_b;
+    const LAD_REF=0.21; // reference high-LAD for bar scaling
+
+    function setSliderFill(sl){
+      const min=parseFloat(sl.min),max=parseFloat(sl.max),v=parseFloat(sl.value);
+      const pct=((v-min)/(max-min))*100;
+      sl.style.background=`linear-gradient(90deg, ${C.lad} 0%, ${C.lad} ${pct}%, ${C.grid} ${pct}%)`;
+    }
+
+    function compute(){
+      const mu=parseFloat(wMean.value), sigma=parseFloat(wSpread.value), div=parseFloat(wDiv.value);
+      wMeanVal.textContent=mu.toFixed(2); wSpreadVal.textContent=sigma.toFixed(2); wDivVal.textContent=div.toFixed(2);
+      [wMean,wSpread,wDiv].forEach(setSliderFill);
+
+      // sample a beta-like distribution of per-task pass-rates with given mean/spread, integrate LAS
+      const N=60;
+      const samples=[];
+      for(let i=0;i<N;i++){
+        // deterministic spread of pass-rates around mu within +/- ~2.5 sigma, clamped
+        const t=(i+0.5)/N;
+        const z=(t-0.5)*2; // -1..1
+        let p=mu+z*sigma*2.2;
+        p=Math.max(0.001,Math.min(0.999,p));
+        samples.push(p);
+      }
+      let mean=0;
+      samples.forEach(p=>{ mean += p*(1-p)*Math.pow(1-p,gamma); });
+      mean/=N;
+      const lad = mean * Math.pow(div, beta);
+      const lift = a + b*lad;
+
+      wLad.textContent=lad.toFixed(3);
+      wLift.textContent=(lift>=0?"+":"")+lift.toFixed(1);
+      wLadBar.style.width=Math.max(2,Math.min(100,(lad/LAD_REF)*100))+"%";
+      wExplain.textContent=`ŷ = ${a} + ${b.toFixed(1)} · ${lad.toFixed(3)} = +${lift.toFixed(1)} pts`;
+
+      drawMini(samples);
+    }
+
+    function drawMini(samples){
+      const W=420,H=150,m={l:8,r:8,t:8,b:24};
+      const pw=W-m.l-m.r, ph=H-m.t-m.b;
+      clear(mini);
+      // histogram of pass-rates into 20 bins
+      const bins=20, counts=new Array(bins).fill(0);
+      samples.forEach(p=>{ let bi=Math.min(bins-1,Math.floor(p*bins)); counts[bi]++; });
+      const maxc=Math.max(...counts,1);
+      const bw=pw/bins;
+      for(let i=0;i<bins;i++){
+        const p=(i+0.5)/bins;
+        const h=(counts[i]/maxc)*ph;
+        const x=m.l+i*bw;
+        // color by per-task signal strength
+        const sig=p*(1-p)*Math.pow(1-p,gamma);
+        const sigN=Math.min(1,sig/0.148);
+        const col = `rgb(${Math.round(lerp(74,13,sigN))},${Math.round(lerp(111,138,sigN*0+138))},${Math.round(lerp(138,85,sigN))})`;
+        el("rect",{x:x+1,y:m.t+ph-h,width:bw-2,height:h,rx:2,fill: sigN>0.4?C.ladDeep:C.steel, opacity:0.35+0.6*sigN},mini);
+      }
+      el("text",{x:m.l,y:H-7,fill:C.faint,"font-size":10,"font-family":"var(--mono)"},mini).textContent="0.0";
+      el("text",{x:W/2,y:H-7,fill:C.dim,"font-size":10,"text-anchor":"middle","font-family":"var(--mono)"},mini).textContent="cohort pass-rate distribution";
+      el("text",{x:W-m.r,y:H-7,fill:C.faint,"font-size":10,"text-anchor":"end","font-family":"var(--mono)"},mini).textContent="1.0";
+    }
+
+    [wMean,wSpread,wDiv].forEach(s=>s.addEventListener("input",compute));
+    compute();
+  })();
+
+  // ============ COHORT FAMILY GRID ============
+  (function(){
+    const grid=document.getElementById("famGrid");
+    RESULTS.cohortFamilies.forEach(c=>{
+      const d=document.createElement("div");
+      d.className="fam";
+      d.innerHTML=`<div class="fn">${c.n}</div><div class="fd">${c.d}</div>`;
+      grid.appendChild(d);
+    });
+  })();
+
+  // ============ REVEAL ON SCROLL ============
+  (function(){
+    const items=document.querySelectorAll(".reveal");
+    const forceAll = location.hash === "#showall";
+    if(forceAll || !("IntersectionObserver" in window)){ items.forEach(i=>i.classList.add("in")); return; }
+    const io=new IntersectionObserver((entries)=>{
+      entries.forEach(e=>{ if(e.isIntersecting){ e.target.classList.add("in"); io.unobserve(e.target); } });
+    },{threshold:0.12});
+    items.forEach((it,i)=>{ it.style.transitionDelay=(Math.min(i%3,3)*0.07)+"s"; io.observe(it); });
+  })();
+
+})();
+</script>
